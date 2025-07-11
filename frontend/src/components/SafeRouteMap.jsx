@@ -4,7 +4,7 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
 // Initialize Mapbox token
-mapboxgl.accessToken = 'pk.eyJ1IjoiYWJkdXJyZWhtYW4xNSIsImEiOiJjbWN6MmQxcWQwc3MxMnFzMzZkYWtnYnUwIn0.FHAHKvVAO7ag-B95Dc-4Sw';
+mapboxgl.accessToken = 'token';
 
 export default function SafeRouteMap({ start, end }) {
   const mapContainer = useRef(null);

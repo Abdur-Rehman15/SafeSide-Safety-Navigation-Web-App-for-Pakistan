@@ -3,7 +3,8 @@ import LiveRouteMap from './components/SafeRouteMap';
 
 function App() {
   // Destination coordinates (Lahore Fort)
-  const destination = [74.3294, 31.5826];
+
+  const destination = [74.240000, 31.392714];
 
   return (
     <div className="p-4">

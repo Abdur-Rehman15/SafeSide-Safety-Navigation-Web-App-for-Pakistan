@@ -6,13 +6,15 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview"
-},
+  },
   "dependencies": {
     "@react-router/dev": "^7.6.3",
     "@react-router/node": "^7.5.3",
     "@react-router/serve": "^7.5.3",
+    "@turf/turf": "^7.2.0",
     "axios": "^1.10.0",
     "isbot": "^5.1.27",
+    "lucide-react": "^0.525.0",
     "mapbox-gl": "^3.13.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

@@ -1,11 +1,12 @@
 // LiveRouteMap.jsx
 import { useEffect, useRef, useState } from 'react';
+import { LoadScript, Autocomplete } from '@react-google-maps/api';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
-export default function LiveRouteMap({ end }) {
+export default function LiveRouteMap({ end: propEnd }) {
   const mapContainer = useRef(null);
   const map = useRef(null);
   const [currentPosition, setCurrentPosition] = useState(null);
@@ -13,6 +14,10 @@ export default function LiveRouteMap({ end }) {
   const [mapLoaded, setMapLoaded] = useState(false);
   const [dangerZonesDrawn, setDangerZonesDrawn] = useState(false);
   const [isInitialRender, setIsInitialRender] = useState(true);
+  // Google Places Autocomplete state
+  const autocompleteRef = useRef();
+  const inputRef = useRef();
+  const [end, setEnd] = useState(propEnd || null);
   const userMarker = useRef(null);
   const destinationMarker = useRef(null);
   const positionWatchId = useRef(null);
@@ -119,6 +124,34 @@ export default function LiveRouteMap({ end }) {
 
     updateMap();
   }, [mapLoaded, currentPosition, end, isInitialRender, dangerZonesDrawn]);
+
+  // Update end if propEnd changes
+  useEffect(() => {
+    if (propEnd) setEnd(propEnd);
+  }, [propEnd]);
+
+
+  // Google Places Autocomplete handler
+  const handlePlaceChanged = () => {
+    let place = null;
+    if (autocompleteRef.current && typeof autocompleteRef.current.getPlace === 'function') {
+      place = autocompleteRef.current.getPlace();
+    } else if (window.google && window.google.maps && window.google.maps.places && inputRef.current) {
+      // fallback: get Autocomplete instance from input
+      const ac = new window.google.maps.places.Autocomplete(inputRef.current, { componentRestrictions: { country: 'pk' } });
+      place = ac.getPlace();
+    }
+    if (place && place.geometry && place.geometry.location) {
+      const coords = [
+        place.geometry.location.lng(),
+        place.geometry.location.lat()
+      ];
+      console.log('Selected coords:', coords, 'Place:', place);
+      setEnd(coords);
+    } else {
+      console.warn('No geometry found for selected place:', place);
+    }
+  };
 
   const startPositionTracking = () => {
     if (!navigator.geolocation) {
@@ -838,6 +871,27 @@ export default function LiveRouteMap({ end }) {
 
   return (
     <div className="w-full h-full relative">
+      {/* Google Places Search bar */}
+      <div className="absolute top-2 left-1/2 transform -translate-x-1/2 z-20 w-full max-w-md">
+        <LoadScript
+          googleMapsApiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}
+          libraries={['places']}
+        >
+          <Autocomplete
+            onLoad={ac => (autocompleteRef.current = ac)}
+            onPlaceChanged={handlePlaceChanged}
+            options={{ componentRestrictions: { country: 'pk' } }}
+          >
+            <input
+              ref={inputRef}
+              type="text"
+              placeholder="Search for any place in Pakistan..."
+              className="w-full px-4 py-2 rounded shadow border border-gray-300 focus:outline-none focus:ring"
+            />
+          </Autocomplete>
+        </LoadScript>
+      </div>
+
       <div 
         ref={mapContainer} 
         className="w-full h-full"

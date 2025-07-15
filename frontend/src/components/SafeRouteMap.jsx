@@ -35,7 +35,13 @@ export default function LiveRouteMap({ end: propEnd }) {
       lat: 31.390900,
       lng: 74.238000,
       radius: 400 // meters
-    }
+    },
+    // {
+    //   id: 'zone-3', 
+    //   lat: 31.385500,
+    //   lng: 74.249000,
+    //   radius: 300 // meters
+    // }
   ];
 
   // Initialize map and markers

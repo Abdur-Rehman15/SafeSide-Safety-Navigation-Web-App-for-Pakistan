@@ -1,12 +1,11 @@
 import express from 'express';
+import { register, login, getProfile } from '../controllers/authController.js';
+import {protect} from '../middlewares/auth.js'
+
 const router = express.Router();
 
-router.post('/register', (req, res) => {
-  res.json({ message: 'Register endpoint' });
-});
-
-router.post('/login', (req, res) => {
-  res.json({ message: 'Login endpoint' });
-});
+router.post('/register', register);
+router.post('/login', login);
+router.get('/profile', protect, getProfile);
 
 export default router;

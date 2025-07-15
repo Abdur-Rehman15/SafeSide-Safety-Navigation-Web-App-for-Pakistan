@@ -7,11 +7,12 @@ import { Server } from 'socket.io';
 
 // Import routes
 import authRoutes from './routes/auth.js';
-import routeRoutes from './routes/routes.js';
+import CrimeReportRoutes from './routes/crimeReports.js';
 
 dotenv.config();
 
 const app = express();
+
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
@@ -38,8 +39,8 @@ io.on('connection', (socket) => {
 });
 
 // Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/routes', routeRoutes);
+app.use('/user', authRoutes);
+app.use('/report', CrimeReportRoutes);
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));

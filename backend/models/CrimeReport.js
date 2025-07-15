@@ -1,6 +1,20 @@
 import mongoose from 'mongoose';
 
-const CrimeReportSchema = new mongoose.Schema({
+const crimeReportSchema = new mongoose.Schema({
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  userId: {
+    type: Number,
+    required: true
+  },
+  typeOfCrime: {
+    type: String,
+    enum: ['harassment', 'theft', 'robbery', 'other'],
+    required: true
+  },
   location: {
     type: {
       type: String,
@@ -8,32 +22,27 @@ const CrimeReportSchema = new mongoose.Schema({
       required: true
     },
     coordinates: {
-      type: [Number],
+      type: [Number], // [longitude, latitude]
       required: true
     }
   },
-  crimeType: {
-    type: String,
-    enum: ['theft', 'harassment', 'assault', 'other'],
-    required: true
-  },
   severity: {
     type: Number,
+    required: true,
     min: 1,
-    max: 5,
-    default: 3
+    max: 5
   },
-  description: String,
-  reportedBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
+  comments: {
+    type: String,
+    trim: true,
+    maxlength: 500
   },
-  verified: {
-    type: Boolean,
-    default: false
+  reportedAt: {
+    type: Date,
+    default: Date.now
   }
-}, { timestamps: true });
+});
 
-CrimeReportSchema.index({ location: '2dsphere' });
+crimeReportSchema.index({ location: '2dsphere' });
 
-export default mongoose.model('CrimeReport', CrimeReportSchema);
+export default mongoose.model('CrimeReport', crimeReportSchema);

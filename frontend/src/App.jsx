@@ -1,20 +1,37 @@
-// App.jsx
-import LiveRouteMap from './components/SafeRouteMap';
-import MyComponent from './components/MyComponent';
+import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { AuthProvider } from './components/AuthContext';
+import LandingPage from './pages/LandingPage';
+import Dashboard from './pages/Dashboard';
+import DashboardLayout from './components/DashboardLayout';
+import ProtectedRoute from './components/ProtectedRoute';
+
+const router = createBrowserRouter([
+  {
+    path: "/",
+    element: <LandingPage />,
+  },
+  {
+    element: <ProtectedRoute />,
+    children: [
+      {
+        path: "/home",
+        element: <DashboardLayout />,
+        children: [
+          {
+            index: true,
+            element: <Dashboard />,
+          },
+        ],
+      },
+    ],
+  },
+]);
 
 function App() {
-  // Destination coordinates (Lahore Fort)
-
-  const destination = [74.240000, 31.392714];
-
   return (
-    <div className="p-4">
-        <h1 className="text-xl font-bold mb-4">Live Navigation</h1>
-        <div className="border rounded-lg overflow-hidden" style={{ height: '600px' }}>
-      <LiveRouteMap end={destination} />
-        </div>
-        <MyComponent/>  
-      </div>
+    <AuthProvider>
+      <RouterProvider router={router} />
+    </AuthProvider>
   );
 }
 

@@ -1,7 +1,7 @@
 import CrimeReport from '../models/CrimeReport.js';
 import User from '../models/User.js';
 
-// Submit a crime report
+// Submit a crime report with votes initialization
 export const submitCrimeReport = async (req, res) => {
   try {
     const { typeOfCrime, longitude, latitude, severity, comments } = req.body;
@@ -26,7 +26,12 @@ export const submitCrimeReport = async (req, res) => {
         coordinates: [parseFloat(longitude), parseFloat(latitude)]
       },
       severity,
-      comments
+      comments,
+      votes: {
+        upvotes: [],
+        downvotes: [],
+        score: 0
+      }
     });
 
     await crimeReport.save();
@@ -40,13 +45,15 @@ export const submitCrimeReport = async (req, res) => {
   }
 };
 
-// Get crime reports by user
+// Get crime reports by user (including votes)
 export const getUserCrimeReports = async (req, res) => {
   try {
     const userId = req.user.userId;
     const reports = await CrimeReport.find({ userId })
       .sort({ reportedAt: -1 })
-      .select('-__v');
+      .select('-__v')
+      .populate('votes.upvotes', 'firstName lastName')
+      .populate('votes.downvotes', 'firstName lastName');
 
     res.json(reports);
   } catch (error) {
@@ -54,24 +61,42 @@ export const getUserCrimeReports = async (req, res) => {
   }
 };
 
-// Get nearby crime reports
+// Get nearby crime reports (simplified response)
 export const getNearbyCrimeReports = async (req, res) => {
   try {
-    const { longitude, latitude, maxDistance = 5000 } = req.query;
+    const { longitude, latitude, maxDistance } = req.query;
+
+    const lng = parseFloat(longitude);
+    const lat = parseFloat(latitude);
+    const maxDist = parseInt(maxDistance);
+
+    if (isNaN(lng) || isNaN(lat) || isNaN(maxDist)) {
+      return res.status(400).json({ message: 'Please provide valid longitude, latitude, and maxDistance query parameters.' });
+    }
 
     const reports = await CrimeReport.find({
       location: {
         $near: {
           $geometry: {
             type: "Point",
-            coordinates: [parseFloat(longitude), parseFloat(latitude)]
+            coordinates: [longitude, latitude]
           },
-          $maxDistance: parseInt(maxDistance)
+          $maxDistance: maxDistance
         }
       }
-    }).sort({ reportedAt: -1 });
+    })
 
-    res.json(reports);
+    const formattedReports = reports.map(report => ({
+      _id: report._id,
+      typeOfCrime: report.typeOfCrime,
+      severity: report.severity,
+      comments: report.comments,
+      location: {
+        coordinates: report.location.coordinates
+      }
+    }));
+
+    res.status(201).json(formattedReports);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

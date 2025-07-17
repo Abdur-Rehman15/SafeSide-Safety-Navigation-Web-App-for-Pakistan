@@ -1,61 +1,76 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
+import { useNavigate } from 'react-router';
+import axios from 'axios';
 
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
+  // const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [activeModal, setActiveModal] = useState(null); 
 
   useEffect(() => {
     const token = localStorage.getItem('authToken');
-    if (token) {
-      verifyToken(token);
-    } else {
-      setLoading(false);
-    }
+    
   }, []);
-
-  const verifyToken = async (token) => {
-    try {
-      // Mock verification - replace with actual API call
-      setUser({
-        username: 'testuser',
-        firstName: 'Test',
-        lastName: 'User'
-      });
-      setLoading(false);
-    } catch (error) {
-      localStorage.removeItem('authToken');
-      setLoading(false);
-    }
-  };
-
+  
   const login = async (credentials) => {
     try {
-      setLoading(true);
-      // Mock login - replace with actual API call
-      localStorage.setItem('authToken', 'fake-token');
+      const response = await axios.post(
+        'http://localhost:5000/user/login',
+        credentials,
+        {
+          headers: { 'Accept': 'application/json' },
+          withCredentials: true,
+        }
+      );
+      localStorage.setItem('authToken', response.data.token);
+      localStorage.setItem('userId', response.data.userId)
       setUser({
-        username: credentials.email,
-        firstName: 'Test',
-        lastName: 'User'
+        username: response.data.username,
+        firstName: response.data.firstName,
+        lastName: response.data.lastName,
+        email: response.data.email,
+        gender: response.data.gender
       });
       return true;
     } catch (error) {
+      console.log('Error is: ', error);
       return false;
     } finally {
       setLoading(false);
     }
   };
 
+  const register = async (formData) => {
+    try {
+      const registeredUser = await axios.post(
+        'http://localhost:5000/user/register',
+        formData,
+        {
+          headers: { 'Accept': 'application/json' },
+          withCredentials: true,
+        }
+      );
+      return true;
+    } catch (err) {
+      console.log('Error during signup: ', err);
+    } finally {
+      setLoading(false);
+    }
+
+  }
+
   const logout = () => {
     localStorage.removeItem('authToken');
+    localStorage.removeItem('userId');
     setUser(null);
-    // Navigation removed from here
+    // navigate('/');
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, register, activeModal, setActiveModal }}>
       {children}
     </AuthContext.Provider>
   );

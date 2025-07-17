@@ -8,11 +8,11 @@ import {
   DialogContent,
   CircularProgress
 } from '@mui/material';
-import { AuthProvider} from './AuthContext';
+import { useAuth} from './AuthContext';
 import { useNavigate } from 'react-router';
 
 export default function LoginModal() {
-  const { activeModal, setActiveModal } = useContext(AuthProvider);
+  const { login, activeModal, setActiveModal } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -27,30 +27,16 @@ export default function LoginModal() {
     setError('');
 
     try {
-      console.log('data is: ', formData);
-      const response = await axios.post(
-        'http://localhost:5000/user/login', 
-        formData,
-        {
-          headers: { 'Accept': 'application/json' },
-          withCredentials: true,
-        }
-      );
-      
-      if (response.data) {
-        localStorage.setItem('authToken', response.data.token);
+      const success = await login(formData);
+      if (success) {
         setActiveModal(null);
-        await new Promise(resolve => setTimeout(resolve, 50));
-        navigate('/home');
+        navigate('/home'); 
       } else {
-        setError(response.data.message || 'Login failed');
+        setError('Login failed');
       }
     } catch (err) {
-      if (err.response && err.response.data && err.response.data.message) {
-        setError(err.response.data.message);
-      } else {
-        setError('An error occurred during login');
-      }
+
+      console.log('an error occured during login: ', err);
     } finally {
       setLoading(false);
     }

@@ -2,6 +2,7 @@ import { Outlet, Link } from 'react-router-dom';
 import { AppBar, Toolbar, Typography, Avatar, Menu, MenuItem, IconButton } from '@mui/material';
 import { useState } from 'react';
 import { useAuth } from './AuthContext';
+import { useNavigate } from 'react-router';
 
 export default function DashboardLayout() {
   const { user, logout } = useAuth();
@@ -10,7 +11,7 @@ export default function DashboardLayout() {
 
   const handleLogout = () => {
     logout();
-    navigate('/'); // Move navigation here
+    navigate('/'); 
   };
 
   const handleMenuOpen = (event) => {
@@ -43,8 +44,7 @@ export default function DashboardLayout() {
               onClose={handleMenuClose}
             >
               <MenuItem component={Link} to="/profile">Profile</MenuItem>
-              <MenuItem onClick={logout}>Logout</MenuItem>
-              <button onClick={handleLogout}>Logout</button>
+              <MenuItem onClick={handleLogout}>Logout</MenuItem>
             </Menu>
           </div>
         </Toolbar>

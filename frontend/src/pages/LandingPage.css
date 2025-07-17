@@ -18,12 +18,14 @@
   position: sticky;
   top: 0;
   z-index: 100;
+  flex-wrap: wrap;
 }
 
 .app-name {
   font-size: 1.8rem;
   font-weight: 700;
   color: var(--primary);
+  text-align: center;
 }
 .app-name span {
   color: var(--accent);
@@ -32,8 +34,11 @@
 .navbar-right {
   display: flex;
   gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
 }
 
+/* Button classes (optional override if needed) */
 .nav-btn {
   padding: 0.6rem 1.5rem;
   border-radius: 8px;
@@ -45,6 +50,7 @@
   background: transparent;
   border: 2px solid var(--primary);
   color: var(--primary);
+  text-align: center;
 }
 .signup-btn {
   background: var(--primary);
@@ -59,6 +65,13 @@
   justify-content: space-between;
   padding: 4rem 5%;
   background: var(--light-bg);
+  gap: 2rem;
+  flex-wrap: wrap;
+}
+
+.hero-content {
+  flex: 1;
+  min-width: 280px;
 }
 
 .hero-content h1 {
@@ -87,6 +100,18 @@
   font-weight: 600;
   font-size: 1.1rem;
   cursor: pointer;
+  transition: 0.3s ease;
+}
+
+.hero-image {
+  flex: 1;
+  min-width: 280px;
+  display: flex;
+  justify-content: center;
+}
+.hero-image img {
+  max-width: 100%;
+  height: auto;
 }
 
 /* ===== FEATURES SECTION ===== */
@@ -105,7 +130,7 @@
 
 .features-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 2rem;
 }
 
@@ -123,12 +148,64 @@
 }
 
 /* ===== RESPONSIVE DESIGN ===== */
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   .hero-section {
     flex-direction: column;
     text-align: center;
   }
+
   .hero-content h1 {
-    font-size: 2.5rem;
+    font-size: 2.8rem;
+  }
+
+  .hero-content p {
+    font-size: 1.1rem;
+  }
+
+  .cta-button {
+    width: 100%;
+    max-width: 300px;
+  }
+
+  .navbar {
+    flex-direction: column;
+    align-items: flex-start;
+    text-align: center;
+  }
+
+  .navbar-right {
+    justify-content: flex-start;
+    margin-top: 0.5rem;
+    text-align: center;
+  }
+}
+
+@media (max-width: 600px) {
+  .app-name {
+    font-size: 1.5rem;
+  }
+
+  .hero-content h1 {
+    font-size: 2.2rem;
+  }
+
+  .hero-content p {
+    font-size: 1rem;
+  }
+
+  .features-section h2 {
+    font-size: 2rem;
+  }
+
+  .cta-button {
+    font-size: 1rem;
+    padding: 0.8rem 1.5rem;
+  }
+
+  .navbar-right {
+    flex-direction: column;
+    gap: 0.5rem;
+    width: 50%;
+    text-align: center;
   }
 }

@@ -4,6 +4,10 @@ import LandingPage from './pages/LandingPage';
 import Dashboard from './pages/Dashboard';
 import DashboardLayout from './components/DashboardLayout';
 import ProtectedRoute from './components/ProtectedRoute';
+import Profile from './pages/Profile'
+import CrimeReportForm from './components/CrimeReportForm';
+import LocationReview from './components/LocationReview';
+import SafeRouteMap from './components/SafeRouteMap'
 
 const router = createBrowserRouter([
   {
@@ -23,6 +27,22 @@ const router = createBrowserRouter([
           },
         ],
       },
+      {
+        path: "/profile",
+        element: <Profile/>
+      },
+      {
+        path: "/report-crime",
+        element: <CrimeReportForm/>
+      },
+      {
+        path: "/location-review",
+        element: <LocationReview/>
+      },
+      {
+        path: "/safe-route",
+        element: <SafeRouteMap/>
+      }
     ],
   },
 ]);

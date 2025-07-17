@@ -3,17 +3,13 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import './LandingPage.css';
 import { Button } from '@mui/material';
-import { useContext } from 'react';
-import { AuthProvider } from '../components/AuthContext';
+import { useAuth } from '../components/AuthContext';
 import LoginModal from '../components/LoginModal';
 import SignupModal from '../components/SignupModal';
 
 const LandingPage = () => {
-  const [isHovered, setIsHovered] = useState(false);
   const navigate = useNavigate();
-  // Safely get setActiveModal from AuthContext, fallback to no-op if undefined
-  const authContext = useContext(AuthProvider) || {};
-  const setActiveModal = authContext.setActiveModal || (() => {});
+  const { setActiveModal } = useAuth();
 
   return (
     <div className="landing-page">

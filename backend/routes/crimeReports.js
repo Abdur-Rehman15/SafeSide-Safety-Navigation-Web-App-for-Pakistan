@@ -10,6 +10,6 @@ const router = express.Router();
 
 router.post('/submit-report', protect, submitCrimeReport);
 router.get('/my-reports', protect, getUserCrimeReports);
-router.get('/nearby-reports', getNearbyCrimeReports);
+router.get('/nearby-reports', protect, getNearbyCrimeReports);
 
 export default router;

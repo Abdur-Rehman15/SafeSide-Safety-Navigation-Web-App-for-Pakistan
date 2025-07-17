@@ -1,10 +1,10 @@
 import React, { useState, useContext } from 'react';
 import { Dialog, TextField, Button, DialogTitle, DialogContent, MenuItem, CircularProgress } from '@mui/material';
-import { AuthProvider } from './AuthContext';
+import { useAuth } from './AuthContext';
 import { registerUser } from '../services/api';
 
 export default function SignupModal() {
-  const { activeModal, setActiveModal } = useContext(AuthProvider);
+  const { register, activeModal, setActiveModal } = useAuth(); // Use useAuth hook
   const [formData, setFormData] = useState({
     username: '',
     firstName: '',
@@ -22,13 +22,11 @@ export default function SignupModal() {
     setError('');
     
     try {
-      const response = await registerUser(formData);
+      const response = await register(formData);
       
-      if (response.success) {
-        // Store token and user data
-        localStorage.setItem('authToken', response.token);
+      if (response) {
         setActiveModal(null); // Close modal on success
-        window.location.reload(); // Refresh to update auth state
+        alert('Registration successful');
       } else {
         setError(response.message || 'Registration failed');
       }

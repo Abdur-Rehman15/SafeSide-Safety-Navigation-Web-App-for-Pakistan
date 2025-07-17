@@ -24,12 +24,8 @@ export const protect = async (req, res, next) => {
   }
 
   try {
-    console.log('Token:', token); // Debug log
-    
-    // 2. Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
-    // 3. Get user from database
     const currentUser = await User.findOne({ userId: decoded.userId });
     
     if (!currentUser) {
@@ -39,7 +35,6 @@ export const protect = async (req, res, next) => {
       });
     }
 
-    // 4. Attach user to request
     req.user = {
       _id: currentUser._id,
       userId: currentUser.userId,
@@ -48,7 +43,7 @@ export const protect = async (req, res, next) => {
     
     next();
   } catch (err) {
-    console.error('Token verification error:', err); // Debug log
+    console.error('Token verification error:', err); 
     return res.status(401).json({
       status: 'fail',
       message: 'Invalid token'

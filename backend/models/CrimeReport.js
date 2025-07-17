@@ -40,9 +40,29 @@ const crimeReportSchema = new mongoose.Schema({
   reportedAt: {
     type: Date,
     default: Date.now
+  },
+  votes: {
+    upvotes: {
+      type: [mongoose.Schema.Types.ObjectId], // Array of user IDs who upvoted
+      default: []
+    },
+    downvotes: {
+      type: [mongoose.Schema.Types.ObjectId], // Array of user IDs who downvoted
+      default: []
+    },
+    score: {
+      type: Number, // Calculated score (upvotes - downvotes)
+      default: 0
+    }
   }
 });
 
 crimeReportSchema.index({ location: '2dsphere' });
+
+// Add a pre-save hook to update the vote score
+crimeReportSchema.pre('save', function(next) {
+  this.votes.score = this.votes.upvotes.length - this.votes.downvotes.length;
+  next();
+});
 
 export default mongoose.model('CrimeReport', crimeReportSchema);

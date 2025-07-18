@@ -50,8 +50,8 @@ export const getUserCrimeReports = async (req, res) => {
   try {
     const userId = req.user.userId;
     const reports = await CrimeReport.find({ userId })
-      .sort({ reportedAt: -1 })
-      .select('-__v')
+      // .sort({ reportedAt: -1 })
+      // .select('-__v')
       .populate('votes.upvotes', 'firstName lastName')
       .populate('votes.downvotes', 'firstName lastName');
 
@@ -97,6 +97,20 @@ export const getNearbyCrimeReports = async (req, res) => {
     }));
 
     res.status(201).json(formattedReports);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Get all crime reports (admin/global view)
+export const getAllCrimeReports = async (req, res) => {
+  try {
+    const reports = await CrimeReport.find({})
+      .populate('user', 'firstName lastName email') // Optional: populate user info
+      .populate('votes.upvotes', 'firstName lastName')
+      .populate('votes.downvotes', 'firstName lastName');
+
+    res.status(200).json(reports);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

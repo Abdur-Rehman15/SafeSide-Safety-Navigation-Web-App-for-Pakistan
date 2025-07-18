@@ -63,8 +63,8 @@ export default function CrimeReportForm() {
     try {
       const response = await axios.post('http://localhost:5000/report/submit-report', {
         ...formData,
-        longitude: location.longitude,
-        latitude: location.latitude,
+        longitude: 74.244000,
+        latitude: 31.390900,
         votes: {
           upvotes: [],
           downvotes: [],

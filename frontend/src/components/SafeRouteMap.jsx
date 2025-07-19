@@ -194,19 +194,32 @@ export default function LiveRouteMap({ end: propEnd }) {
       }
       
       // Step 2: Check if direct route intersects any danger zones
+      // Step 2: Identify zones to exclude from route calculation
+      const startZones = dangerZones.filter(zone => {
+        return haversineDistance([zone.lng, zone.lat], startPos) <= zone.radius;
+      });
+
       const destinationZones = dangerZones.filter(zone => {
         return haversineDistance([zone.lng, zone.lat], endPos) <= zone.radius;
       });
-      
-      const zonesToAvoid = dangerZones.filter(zone => !destinationZones.includes(zone));
+
+      // Exclude both start and destination zones from route calculation
+      const zonesToAvoid = dangerZones.filter(zone => 
+        !startZones.includes(zone) && !destinationZones.includes(zone)
+      );
+
       const intersectingZones = checkRouteIntersection(directRoute, zonesToAvoid);
+
+      console.log(`Excluded ${startZones.length} start zones and ${destinationZones.length} destination zones from route calculation`);
+      console.log(`Remaining zones to avoid: ${zonesToAvoid.length}`);
       
       console.log(`Found ${intersectingZones.length} intersecting zones (excluding destination zones):`, intersectingZones.map(z => z.id));
 
       if (intersectingZones.length === 0) {
         // No intersection, use direct route
         console.log("✅ No intersection detected, using direct route");
-        drawRoute(directRoute, destinationZones.length > 0 ? '#ff6600' : '#3a86ff');
+        const hasLocationZones = startZones.length > 0 || destinationZones.length > 0;
+        drawRoute(directRoute, hasLocationZones ? '#ff6600' : '#3a86ff');
         return;
       }
 
@@ -216,9 +229,10 @@ export default function LiveRouteMap({ end: propEnd }) {
       const avoidanceRoute = await calculateRobustAvoidanceRoute(startPos, endPos, intersectingZones);
       
       if (avoidanceRoute) {
-        console.log("✅ Found avoidance route");
-        drawRoute(avoidanceRoute, destinationZones.length > 0 ? '#ff6600' : '#00ff00');
-      } else {
+      console.log("✅ Found avoidance route");
+      const hasLocationZones = startZones.length > 0 || destinationZones.length > 0;
+      drawRoute(avoidanceRoute, hasLocationZones ? '#ff6600' : '#00ff00');
+    } else {
         console.log("⚠️ No avoidance route found, finding best route through danger zones...");
         
         // NEW: Find the best route through danger zones based on severity
@@ -226,6 +240,7 @@ export default function LiveRouteMap({ end: propEnd }) {
         
         if (bestRoute.route) {
           console.log(`✅ Found best route through danger zones with total severity: ${bestRoute.totalSeverity}`);
+          const hasLocationZones = startZones.length > 0 || destinationZones.length > 0;
           drawRoute(bestRoute.route, '#ff0000'); // Red color to indicate danger
           
           // Enhanced warning message with severity information
@@ -263,6 +278,7 @@ export default function LiveRouteMap({ end: propEnd }) {
     } catch (error) {
       console.error("Failed to get direct route:", error);
     }
+    const hasLocationZones = startZones.length > 0 || destinationZones.length > 0;
     
     // Option 2: Try multiple waypoint strategies to find routes with lower severity
     const waypointStrategies = await generateWaypointStrategies(startPos, endPos, intersectingZones);

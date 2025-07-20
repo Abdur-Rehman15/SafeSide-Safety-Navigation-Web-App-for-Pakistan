@@ -1,83 +1,93 @@
-// LiveRouteMap.jsx - Fixed Version
+// LiveRouteMap.jsx - Debugged and Fixed Version
 import React, { useEffect, useRef, useState } from 'react';
 import { LoadScript, Autocomplete } from '@react-google-maps/api';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import axios from 'axios';
+import { TextField, Button, Typography, Box, Paper, Radio, RadioGroup, FormControlLabel, styled } from '@mui/material';
+import FormControl from '@mui/material/FormControl';
+import DriveIcon from '@mui/icons-material/DirectionsCar';
+import WalkIcon from '@mui/icons-material/DirectionsWalk';
+import { LocationOn as LocationIcon } from '@mui/icons-material';
+import WarningIcon from '@mui/icons-material/Warning';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import ErrorIcon from '@mui/icons-material/Error';
+import CircularProgress from '@mui/material/CircularProgress';
+import CloseIcon from '@mui/icons-material/Close';
+import Modal from '@mui/material/Modal';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
 export default function LiveRouteMap({ end: propEnd }) {
   const mapContainer = useRef(null);
   const map = useRef(null);
+  const autocompleteRef = useRef();
+  const inputRef = useRef();
+  const userMarker = useRef(null);
+  const destinationMarker = useRef(null);
+  const positionWatchId = useRef(null);
+
+  const [initializationPhase, setInitializationPhase] = useState(true);
+  const [travelMode, setTravelMode] = useState('driving');
+  const [destination, setDestination] = useState(propEnd || null);
   const [currentPosition, setCurrentPosition] = useState(null);
   const [locationError, setLocationError] = useState(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [dangerZones, setDangerZones] = useState([]);
   const [loading, setLoading] = useState(false);
-  
-  // Google Places Autocomplete state
-  const autocompleteRef = useRef();
-  const inputRef = useRef();
   const [end, setEnd] = useState(propEnd || null);
-  const userMarker = useRef(null);
-  const destinationMarker = useRef(null);
-  const positionWatchId = useRef(null);
+  const [riskWarning, setRiskWarning] = useState(null);
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [routeCalculated, setRouteCalculated] = useState(false);
+  const [userHeading, setUserHeading] = useState(0);
+  const [shouldCalculateRoute, setShouldCalculateRoute] = useState(false);
+  const [routeData, setRouteData] = useState(null);
+  const [remainingDistance, setRemainingDistance] = useState(null);
+  const [currentRouteColor, setCurrentRouteColor] = useState('blue');
+  const [warningOpen, setWarningOpen] = useState(true);
+  const [isMapCentered, setIsMapCentered] = useState(true);
+  const recenterButtonRef = useRef(null);
+  const [hasArrived, setHasArrived] = useState(false);
+  
+  // Map initialization
+  const handleInitializeMap = () => {
+    if (!destination) {
+      setLocationError("Please select a destination");
+      return;
+    }
+    setInitializationPhase(false);
+    setTimeout(() => {
+      initializeMap();
+    }, 100);
+  };
 
-  // SINGLE map initialization - removing duplicate
   useEffect(() => {
     if (map.current || !mapContainer.current) return;
-
-    console.log("Initializing map...");
-    
-    // Check if Mapbox token is available
     if (!mapboxgl.accessToken) {
-      console.error("Mapbox token not found!");
       setLocationError("Map configuration error. Please check your API keys.");
       return;
     }
-    
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/streets-v12',
       center: [74.255, 31.39],
       zoom: 13
     });
-
-    // Add controls
     map.current.addControl(new mapboxgl.NavigationControl());
     map.current.addControl(new mapboxgl.ScaleControl());
-
-    // Initialize markers
-    userMarker.current = new mapboxgl.Marker({ 
-      color: '#00FF00',
-      className: 'user-marker'
-    });
-
-    destinationMarker.current = new mapboxgl.Marker({ 
-      color: '#FF0000',
-      className: 'destination-marker'
-    });
-
-    // Map load handler
+    userMarker.current = new mapboxgl.Marker({ color: '#00FF00' });
+    destinationMarker.current = new mapboxgl.Marker({ color: '#FF0000' });
     map.current.on('load', () => {
-      console.log("Map loaded successfully");
       setMapLoaded(true);
-      
-      // Start position tracking after map loads
       setTimeout(() => {
         startPositionTracking();
       }, 100);
     });
-
-    // Error handling
     map.current.on('error', (e) => {
-      console.error("Map error:", e);
       setLocationError("Failed to load map. Please refresh the page.");
     });
-
     return () => {
-      console.log("Cleaning up map and geolocation...");
       if (positionWatchId.current) {
         navigator.geolocation.clearWatch(positionWatchId.current);
       }
@@ -88,15 +98,12 @@ export default function LiveRouteMap({ end: propEnd }) {
     };
   }, []);
 
-  // Fetch danger zones when position changes
+  // Danger zones fetch
   useEffect(() => {
     if (!currentPosition) return;
-    
     const fetchDangerZones = async () => {
       try {
         setLoading(true);
-        console.log("Fetching danger zones...");
-        
         const response = await axios.get('http://localhost:5000/report/all-reports', {
           headers: {
             Authorization: `Bearer ${localStorage.getItem('authToken')}`,
@@ -105,160 +112,179 @@ export default function LiveRouteMap({ end: propEnd }) {
           },
           withCredentials: true
         });
-        
-        console.log("Danger zones response:", response.data);
-        
-        // Transform crime reports into danger zones
         const zones = response.data.map((report, index) => ({
           id: report._id || `zone-${index}`,
           lat: report.location.coordinates[1],
           lng: report.location.coordinates[0],
-          radius: report.radius || 500,
           severity: report.severity || 1,
-          description: report.comments || 'No description'
+          radius: (() => {
+            const sev = report.severity || 1;
+            if (sev === 1) return 100;
+            if (sev === 2) return 150;
+            if (sev === 3) return 200;
+            if (sev === 4) return 250;
+            if (sev === 5) return 300;
+            return 100;
+          })(),
+          description: report.comments || 'No description',
+          type: report.typeOfCrime || report.type || report.category || 'Danger Zone',
+          createdAt: report.createdAt || report.date || null
         }));
-        
-        console.log("Processed danger zones:", zones);
         setDangerZones(zones);
       } catch (err) {
-        console.error("Failed to fetch danger zones:", err);
         setLocationError('Failed to load danger zone data');
       } finally {
         setLoading(false);
       }
     };
-    
     fetchDangerZones();
   }, [currentPosition]);
 
-  // Draw danger zones when they change or map loads
+  // Draw danger zones
   useEffect(() => {
     if (mapLoaded && dangerZones.length > 0) {
-      console.log("Drawing danger zones...");
       drawAllDangerZones();
     }
   }, [mapLoaded, dangerZones]);
-  
-  // Handle position updates and route calculation
+
+  // Route calculation
   useEffect(() => {
-    if (!mapLoaded || !currentPosition || !end) {
-      console.log("Route calculation skipped:", { mapLoaded, currentPosition: !!currentPosition, end: !!end });
-      return;
-    }
-  
+    if (!mapLoaded || !currentPosition || !end || !shouldCalculateRoute) return;
     const updateMap = async () => {
       try {
-        console.log("Updating map with route calculation...");
         await updateDestinationMarker(end);
         await updateRouteWithAvoidance(currentPosition, end);
       } catch (error) {
-        console.error("Error updating map:", error);
         setLocationError("Failed to calculate route. Please try again.");
       }
     };
-  
     updateMap();
-  }, [mapLoaded, currentPosition, end, dangerZones]);
+  }, [mapLoaded, currentPosition, end, dangerZones, shouldCalculateRoute]);
 
-  // Update end if propEnd changes
   useEffect(() => {
-    if (propEnd) {
-      console.log("Updating end position from prop:", propEnd);
-      setEnd(propEnd);
-    }
+    if (propEnd) setEnd(propEnd);
   }, [propEnd]);
 
-  // Enhanced route calculation with proper danger zone avoidance
-  // Enhanced route calculation with severity-based route selection
-  const updateRouteWithAvoidance = async (startPos, endPos) => {
-    if (!mapLoaded || !map.current) {
-      console.log("Map not ready for route calculation");
-      return;
-    }
+  const initializeMap = () => {
+    if (map.current || !mapContainer.current) return;
+    map.current = new mapboxgl.Map({
+      container: mapContainer.current,
+      style: 'mapbox://styles/mapbox/streets-v12',
+      center: currentPosition || [74.255, 31.39],
+      zoom: 13
+    });
+    map.current.addControl(new mapboxgl.NavigationControl());
+    map.current.addControl(new mapboxgl.ScaleControl());
+    userMarker.current = new mapboxgl.Marker({ color: '#00FF00' });
+    destinationMarker.current = new mapboxgl.Marker({ color: '#FF0000' });
+    map.current.on('load', () => {
+      setMapLoaded(true);
+      startPositionTracking();
+      if (destination) updateDestinationMarker(destination);
+    });
+    return () => {
+      if (positionWatchId.current) navigator.geolocation.clearWatch(positionWatchId.current);
+      if (map.current) {
+        map.current.remove();
+        map.current = null;
+      }
+    };
+  };
 
+  // Route calculation logic
+  const updateRouteWithAvoidance = async (startPos, endPos) => {
+    if (!mapLoaded || !map.current) return;
     try {
-      console.log("=== ROUTE CALCULATION START ===");
-      console.log("Start position:", startPos);
-      console.log("End position:", endPos);
-      console.log("Danger zones:", dangerZones.length);
-      
-      // Step 1: Get direct route for analysis
+      // Direct route
       const directRoute = await getDirectRoute(startPos, endPos);
-      console.log("Direct route obtained, distance:", directRoute.distance, "meters");
-      
-      // If no danger zones, use direct route
       if (dangerZones.length === 0) {
-        console.log("✅ No danger zones, using direct route");
         drawRoute(directRoute, '#3a86ff');
         return;
       }
-      
-      // Step 2: Check if direct route intersects any danger zones
-      // Step 2: Identify zones to exclude from route calculation
-      const startZones = dangerZones.filter(zone => {
-        return haversineDistance([zone.lng, zone.lat], startPos) <= zone.radius;
-      });
-
-      const destinationZones = dangerZones.filter(zone => {
-        return haversineDistance([zone.lng, zone.lat], endPos) <= zone.radius;
-      });
-
-      // Exclude both start and destination zones from route calculation
-      const zonesToAvoid = dangerZones.filter(zone => 
-        !startZones.includes(zone) && !destinationZones.includes(zone)
-      );
-
+      // Exclude start/destination zones
+      const startZones = dangerZones.filter(zone => haversineDistance([zone.lng, zone.lat], startPos) <= zone.radius);
+      const destinationZones = dangerZones.filter(zone => haversineDistance([zone.lng, zone.lat], endPos) <= zone.radius);
+      const zonesToAvoid = dangerZones.filter(zone => !startZones.includes(zone) && !destinationZones.includes(zone));
       const intersectingZones = checkRouteIntersection(directRoute, zonesToAvoid);
 
-      console.log(`Excluded ${startZones.length} start zones and ${destinationZones.length} destination zones from route calculation`);
-      console.log(`Remaining zones to avoid: ${zonesToAvoid.length}`);
-      
-      console.log(`Found ${intersectingZones.length} intersecting zones (excluding destination zones):`, intersectingZones.map(z => z.id));
-
       if (intersectingZones.length === 0) {
-        // No intersection, use direct route
-        console.log("✅ No intersection detected, using direct route");
         const hasLocationZones = startZones.length > 0 || destinationZones.length > 0;
         drawRoute(directRoute, hasLocationZones ? '#ff6600' : '#3a86ff');
+        setRiskWarning(hasLocationZones ? {
+          level: "⚠️ CAUTION",
+          message: "You are starting or ending in a danger zone area. Exercise caution.",
+          color: "bg-yellow-100 text-yellow-800"
+        } : null);
+        setRouteCalculated(true);
         return;
       }
 
-      console.log("⚠️ Intersection detected, searching for avoidance route...");
-
-      // Try to find avoidance route
+      // Try avoidance route
+      // Try avoidance route
       const avoidanceRoute = await calculateRobustAvoidanceRoute(startPos, endPos, intersectingZones);
-      
       if (avoidanceRoute) {
-      console.log("✅ Found avoidance route");
-      const hasLocationZones = startZones.length > 0 || destinationZones.length > 0;
-      drawRoute(avoidanceRoute, hasLocationZones ? '#ff6600' : '#00ff00');
-    } else {
-        console.log("⚠️ No avoidance route found, finding best route through danger zones...");
+        const avoidanceIntersections = checkRouteIntersection(avoidanceRoute, intersectingZones);
+        const hasLocationZones = startZones.length > 0 || destinationZones.length > 0;
         
-        // NEW: Find the best route through danger zones based on severity
-        const bestRoute = await findBestRouteWithSeverityConsideration(startPos, endPos, intersectingZones);
-        
-        if (bestRoute.route) {
-          console.log(`✅ Found best route through danger zones with total severity: ${bestRoute.totalSeverity}`);
-          const hasLocationZones = startZones.length > 0 || destinationZones.length > 0;
-          drawRoute(bestRoute.route, '#ff0000'); // Red color to indicate danger
-          
-          // Enhanced warning message with severity information
-          const severityWarning = getSeverityWarningMessage(bestRoute.totalSeverity, bestRoute.maxSeverity, intersectingZones.length);
-          setLocationError(severityWarning);
+        if (avoidanceIntersections.length === 0) {
+          drawRoute(avoidanceRoute, '#00ff00');
+          setRiskWarning({
+            level: "✅ SAFE ROUTE",
+            message: hasLocationZones
+              ? "Route avoids all danger zones, but your start or destination is inside a danger zone. Stay alert at these locations."
+              : "Route successfully avoids all danger zones. Safe travels!",
+            color: "bg-green-100 text-green-800"
+          });
         } else {
-          console.log("❌ No alternative routes found, using direct route");
-          drawRoute(directRoute, '#ff0000');
-          setLocationError("Warning: Route passes through high-severity danger zones. No alternatives available.");
+          // This is supposed to be an avoidance route but still intersects - shouldn't happen
+          // Fall through to find best route instead of using this one
+          console.log("Avoidance route still intersects zones, trying best route selection...");
+        }
+        
+        if (avoidanceIntersections.length === 0) {
+          setRouteCalculated(true);
+          return;
         }
       }
-      
+
+      // If no avoidance route, find best route with severity consideration
+      // If no clean avoidance route, find best route with severity consideration
+      const bestRoute = await findBestRouteWithSeverityConsideration(startPos, endPos, intersectingZones);
+      if (bestRoute && bestRoute.route) {
+        // Check if the best route actually intersects with danger zones
+        const finalIntersections = checkRouteIntersection(bestRoute.route, intersectingZones);
+        const hasLocationZones = startZones.length > 0 || destinationZones.length > 0;
+        
+        if (finalIntersections.length === 0) {
+          // Best route is actually clean!
+          drawRoute(bestRoute.route, '#00ff00');
+          setRiskWarning({
+            level: "✅ SAFE ROUTE", 
+            message: hasLocationZones 
+              ? "Route avoids all danger zones, but your start or destination is inside a danger zone. Stay alert at these locations."
+              : "Route successfully avoids all danger zones. Safe travels!",
+            color: "bg-green-100 text-green-800"
+          });
+        } else {
+          // Route does pass through danger zones - use severity-based coloring
+          const severityColor = bestRoute.maxSeverity >= 4 ? '#ff0000' :
+                                bestRoute.maxSeverity >= 3 ? '#ff6600' : '#ffff00';
+          drawRoute(bestRoute.route, severityColor);
+          const severityWarning = getSeverityWarningMessage(bestRoute.totalSeverity, bestRoute.maxSeverity, finalIntersections.length);
+          setRiskWarning({
+            level: bestRoute.maxSeverity >= 4 ? "⚠️ HIGH RISK" : bestRoute.maxSeverity >= 3 ? "⚠️ MODERATE RISK" : "⚠️ LOW RISK",
+            message: severityWarning,
+            color: bestRoute.maxSeverity >= 4 ? "bg-red-100 text-red-800" : bestRoute.maxSeverity >= 3 ? "bg-orange-100 text-orange-800" : "bg-yellow-100 text-yellow-800"
+          });
+        }
+        setRouteCalculated(true);
+      } else {
+        setLocationError("No route found through danger zones.");
+      }
     } catch (error) {
-      console.error("Error in route calculation:", error);
       setLocationError("Failed to calculate route. Please check your connection and try again.");
     }
   };
-
   // NEW: Find the best route considering severity of danger zones
   const findBestRouteWithSeverityConsideration = async (startPos, endPos, intersectingZones) => {
     console.log("Finding best route with severity consideration...");
@@ -278,7 +304,6 @@ export default function LiveRouteMap({ end: propEnd }) {
     } catch (error) {
       console.error("Failed to get direct route:", error);
     }
-    const hasLocationZones = startZones.length > 0 || destinationZones.length > 0;
     
     // Option 2: Try multiple waypoint strategies to find routes with lower severity
     const waypointStrategies = await generateWaypointStrategies(startPos, endPos, intersectingZones);
@@ -308,12 +333,16 @@ export default function LiveRouteMap({ end: propEnd }) {
   };
 
   // NEW: Calculate severity impact of a route
-  const calculateRouteSeverity = (route, dangerZones) => {
+  // Fix 3: Update the calculateRouteSeverity function to ensure proper zone filtering
+
+  const calculateRouteSeverity = (route, zonesToCheck) => {
     if (!route || !route.geometry || !route.geometry.coordinates) {
       return { totalSeverity: Infinity, maxSeverity: 5, intersectingZones: [] };
     }
 
-    const intersectingZones = checkRouteIntersection(route, dangerZones);
+    // Use the specific zones passed in, or fall back to all danger zones
+    const zones = zonesToCheck || dangerZones;
+    const intersectingZones = checkRouteIntersection(route, zones);
     
     if (intersectingZones.length === 0) {
       return { totalSeverity: 0, maxSeverity: 0, intersectingZones: [] };
@@ -445,24 +474,29 @@ const calculateCentroid = (zones) => {
   return [sumLng / zones.length, sumLat / zones.length];
 };
 
-// NEW: Generate severity-based warning messages
-const getSeverityWarningMessage = (totalSeverity, maxSeverity, zoneCount) => {
-  let warningLevel = "";
-  let advice = "";
-  
-  if (maxSeverity >= 4) {
-    warningLevel = "⚠️ HIGH RISK";
-    advice = "Consider delaying travel or finding alternative transportation.";
-  } else if (maxSeverity >= 3) {
-    warningLevel = "⚠️ MODERATE RISK";
-    advice = "Exercise extreme caution and consider traveling with others.";
-  } else {
-    warningLevel = "⚠️ LOW RISK";
-    advice = "Stay alert and avoid stopping in marked areas.";
-  }
-  
-  return `${warningLevel}: Route passes through ${zoneCount} danger zone${zoneCount > 1 ? 's' : ''} (Max severity: ${maxSeverity}/5). ${advice}`;
-};
+  // NEW: Generate severity-based warning messages
+  const getSeverityWarningMessage = (totalSeverity, maxSeverity, zoneCount) => {
+    // Handle case where route doesn't actually pass through zones
+    if (maxSeverity === 0 || totalSeverity === 0) {
+      return "Route successfully avoids all danger zones. Safe travels!";
+    }
+    
+    let warningLevel = "";
+    let advice = "";
+    
+    if (maxSeverity >= 4) {
+      warningLevel = "⚠️ HIGH RISK";
+      advice = "Consider delaying travel or finding alternative transportation.";
+    } else if (maxSeverity >= 3) {
+      warningLevel = "⚠️ MODERATE RISK";
+      advice = "Exercise extreme caution and consider traveling with others.";
+    } else {
+      warningLevel = "⚠️ LOW RISK";
+      advice = "Stay alert and avoid stopping in marked areas.";
+    }
+    
+    return `Route passes through ${zoneCount} danger zone${zoneCount > 1 ? 's' : ''} (Max severity: ${maxSeverity}/5). ${advice}`;
+  };
 
   // Get direct route for analysis
   const getDirectRoute = async (startPos, endPos) => {
@@ -471,9 +505,11 @@ const getSeverityWarningMessage = (totalSeverity, maxSeverity, zoneCount) => {
     if (!mapboxgl.accessToken) {
       throw new Error("Mapbox access token not available");
     }
+
+    const profile = travelMode === 'walking' ? 'walking' : 'driving';
     
     const response = await fetch(
-      `https://api.mapbox.com/directions/v5/mapbox/driving/${startPos[0]},${startPos[1]};${endPos[0]},${endPos[1]}?` +
+      `https://api.mapbox.com/directions/v5/mapbox/${profile}/${startPos[0]},${startPos[1]};${endPos[0]},${endPos[1]}?` +
       `geometries=geojson&overview=full&steps=true&access_token=${mapboxgl.accessToken}`
     );
 
@@ -663,18 +699,52 @@ const getSeverityWarningMessage = (totalSeverity, maxSeverity, zoneCount) => {
     return colors[Math.min(4, Math.max(0, (severity || 1) - 1))];
   };
 
+  // Store the currently open popup
+  const currentZonePopup = useRef(null);
+
   const addZoneInteractivity = (layerId, zone) => {
     if (!map.current) return;
 
     map.current.on('click', layerId, (e) => {
-      new mapboxgl.Popup()
+      // Format date if available
+      let dateStr = '';
+      if (zone.createdAt) {
+        const dateObj = new Date(zone.createdAt);
+        dateStr = dateObj.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+      }
+      // Use type of crime if available
+      const crimeType = zone.type || 'Danger Zone';
+      // Close previous popup if open
+      if (currentZonePopup.current) {
+        currentZonePopup.current.remove();
+        currentZonePopup.current = null;
+      }
+      // Create popup with close button
+      const popup = new mapboxgl.Popup({ closeButton: false })
         .setLngLat([zone.lng, zone.lat])
         .setHTML(`
-          <strong>Danger Zone</strong><br>
-          Severity: ${zone.severity}/5<br>
-          ${zone.description}
+          <div style="min-width:180px;max-width:240px;font-family:sans-serif;position:relative;">
+            <button id="zone-popup-close" style="position:absolute;top:4px;right:4px;background:transparent;border:none;font-size:1.2rem;cursor:pointer;color:#888;">&times;</button>
+            <div style="font-weight:700;font-size:1.1rem;margin-bottom:2px;">${crimeType}</div>
+            <div style="color:#666;font-size:0.85rem;margin-bottom:4px;">
+              <span style="font-weight:500;">Severity:</span> <span style="color:#b71c1c;">${zone.severity || 1}/5</span>
+            </div>
+            ${dateStr ? `<div style='color:#888;font-size:0.8rem;margin-bottom:4px;'><span style='font-weight:500;'>Posted:</span> ${dateStr}</div>` : ''}
+            <div style="font-size:0.95rem;margin-top:4px;">${zone.description || ''}</div>
+          </div>
         `)
         .addTo(map.current);
+      currentZonePopup.current = popup;
+      // Add close button handler after popup is added to DOM
+      setTimeout(() => {
+        const closeBtn = document.getElementById('zone-popup-close');
+        if (closeBtn) {
+          closeBtn.onclick = () => {
+            popup.remove();
+            currentZonePopup.current = null;
+          };
+        }
+      }, 100);
     });
 
     map.current.on('mouseenter', layerId, () => {
@@ -854,6 +924,13 @@ const getSeverityWarningMessage = (totalSeverity, maxSeverity, zoneCount) => {
         }, 'route'); // Add below the main route layer
       }
 
+      // --- NEW: Update remaining distance ---
+      if (routeData && routeData.distance) {
+        setRemainingDistance(routeData.distance);
+      } else {
+        setRemainingDistance(null);
+      }
+
       console.log("✅ Route drawn successfully");
     } catch (error) {
       console.error("Error drawing route:", error);
@@ -902,13 +979,35 @@ const getSeverityWarningMessage = (totalSeverity, maxSeverity, zoneCount) => {
     ];
     
     console.log("New position:", newPosition);
+    
+    // Update heading if available and navigating
+    if (isNavigating && position.coords.heading !== null && position.coords.heading !== undefined) {
+      setUserHeading(position.coords.heading);
+    }
+    
     setCurrentPosition(newPosition);
     setLocationError(null);
 
     if (map.current && userMarker.current) {
-      userMarker.current
-        .setLngLat(newPosition)
-        .addTo(map.current);
+      // Update marker based on navigation state
+      if (isNavigating) {
+        // Remove existing marker and create navigation arrow
+        userMarker.current.remove();
+        userMarker.current = createNavigationMarker(newPosition, userHeading);
+        userMarker.current.addTo(map.current);
+        // Keep map centered on user if isMapCentered is true
+        if (isMapCentered) {
+          map.current.flyTo({
+            center: newPosition,
+            zoom: 16,
+            essential: true
+          });
+        }
+      } else {
+        userMarker.current
+          .setLngLat(newPosition)
+          .addTo(map.current);
+      }
       
       if (!end) {
         map.current.flyTo({
@@ -917,6 +1016,90 @@ const getSeverityWarningMessage = (totalSeverity, maxSeverity, zoneCount) => {
           essential: true
         });
       }
+    }
+  };
+
+  // 4. Add new helper functions:
+  const createNavigationMarker = (position, heading) => {
+    const el = document.createElement('div');
+    el.innerHTML = `
+      <div style="
+        width: 20px; 
+        height: 20px; 
+        background: #00FF00;
+        border: 3px solid white;
+        border-radius: 50% 50% 50% 0;
+        transform: rotate(${heading - 45}deg);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+      "></div>
+    `;
+    
+    return new mapboxgl.Marker({ element: el, anchor: 'center' })
+      .setLngLat(position);
+  };
+
+  const handleStartNavigation = () => {
+    setIsNavigating(true);
+    setShouldCalculateRoute(true); // This will trigger route calculation
+    // Request high accuracy positioning for navigation
+    if (positionWatchId.current) {
+      navigator.geolocation.clearWatch(positionWatchId.current);
+    }
+    positionWatchId.current = navigator.geolocation.watchPosition(
+      handleNewPosition,
+      (error) => {
+        console.error("Navigation geolocation error:", error);
+        setLocationError(getLocationErrorMessage(error));
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 500, // More frequent updates for navigation
+        timeout: 10000
+      }
+    );
+    // Center map on user immediately
+    if (map.current && currentPosition) {
+      map.current.flyTo({
+        center: currentPosition,
+        zoom: 16,
+        essential: true
+      });
+      setIsMapCentered(true);
+    }
+  };
+
+  // 4. MODIFY THE STOP NAVIGATION HANDLER (replace your existing handleStopNavigation function)
+  const handleStopNavigation = () => {
+    setIsNavigating(false);
+    setShouldCalculateRoute(false); // Stop route calculations
+    setRouteCalculated(false); // Reset route calculated state
+    setRiskWarning(null); // Clear any risk warnings
+    setUserHeading(0);
+    
+    // Clear the route from map
+    if (map.current && map.current.getSource('route')) {
+      map.current.removeLayer('route');
+      if (map.current.getLayer('route-outline')) {
+        map.current.removeLayer('route-outline');
+      }
+      map.current.removeSource('route');
+    }
+    
+    // Restart normal position tracking
+    if (positionWatchId.current) {
+      navigator.geolocation.clearWatch(positionWatchId.current);
+    }
+    
+    startPositionTracking();
+    
+    // Reset marker to normal green dot
+    if (map.current && userMarker.current && currentPosition) {
+      userMarker.current.remove();
+      userMarker.current = new mapboxgl.Marker({ 
+        color: '#00FF00',
+        className: 'user-marker'
+      });
+      userMarker.current.setLngLat(currentPosition).addTo(map.current);
     }
   };
 
@@ -957,106 +1140,522 @@ const getSeverityWarningMessage = (totalSeverity, maxSeverity, zoneCount) => {
   };
 
   // Google Places Autocomplete handler
+  // Modified Google Places handler
   const handlePlaceChanged = () => {
-    let place = null;
-    if (autocompleteRef.current && typeof autocompleteRef.current.getPlace === 'function') {
-      place = autocompleteRef.current.getPlace();
-    } else if (window.google && window.google.maps && window.google.maps.places && inputRef.current) {
-      const ac = new window.google.maps.places.Autocomplete(inputRef.current, { componentRestrictions: { country: 'pk' } });
-      place = ac.getPlace();
-    }
-    if (place && place.geometry && place.geometry.location) {
-      const coords = [
-        place.geometry.location.lng(),
-        place.geometry.location.lat()
-      ];
-      console.log("Place selected:", coords);
+    const place = autocompleteRef.current?.getPlace();
+    if (place?.geometry?.location) {
+      const coords = [place.geometry.location.lng(), place.geometry.location.lat()];
+      setDestination(coords);
       setEnd(coords);
     }
   };
 
+  // Add these styled components at the top of your file
+  // Replace the RouteInfoCard with this responsive version:
+  const ResponsiveRouteInfoCard = styled(Paper)(({ theme }) => ({
+    position: 'absolute',
+    top: theme.spacing(1),
+    left: theme.spacing(1),
+    zIndex: 10,
+    padding: theme.spacing(1),
+    borderRadius: '10px',
+    boxShadow: theme.shadows[3],
+    backgroundColor: theme.palette.background.paper + 'e6',
+    backdropFilter: 'blur(2px)',
+    minWidth: '90px',
+    maxWidth: '90vw',
+    [theme.breakpoints.up('sm')]: {
+      minWidth: '160px',
+      padding: theme.spacing(2),
+      borderRadius: '12px',
+      boxShadow: theme.shadows[5],
+      backgroundColor: theme.palette.background.paper + 'cc',
+      backdropFilter: 'blur(4px)',
+    }
+  }));
+
+  // Replace the RouteLegend with this responsive version:
+  const ResponsiveRouteLegend = styled(Box)(({ theme }) => ({
+    position: 'absolute',
+    top: theme.spacing(1),
+    right: theme.spacing(1),
+    zIndex: 10,
+    padding: theme.spacing(1),
+    borderRadius: '10px',
+    backgroundColor: theme.palette.background.paper + 'e6',
+    backdropFilter: 'blur(2px)',
+    minWidth: '90px',
+    maxWidth: '90vw',
+    [theme.breakpoints.up('sm')]: {
+      padding: theme.spacing(2),
+      borderRadius: '12px',
+      backgroundColor: theme.palette.background.paper + 'cc',
+      backdropFilter: 'blur(4px)',
+      minWidth: '120px',
+    }
+  }));
+
+  // Replace the WarningAlert with this responsive version:
+  const ResponsiveWarningAlert = styled(Paper)(({ severity, theme }) => ({
+    position: 'absolute',
+    top: theme.spacing(65), // Position below the distance box
+    left: theme.spacing(1),
+    zIndex: 5,
+    padding: theme.spacing(1),
+    borderRadius: '10px',
+    boxShadow: theme.shadows[3],
+    backgroundColor: theme.palette.background.paper + 'e6',
+    backdropFilter: 'blur(2px)',
+    minWidth: '90px',
+    width: 'calc(100% - 16px)', // Match distance box width
+    maxWidth: '90vw',
+    [theme.breakpoints.up('sm')]: {
+      top: theme.spacing(1),
+      left: '50%',
+      transform: 'translateX(-50%)',
+      padding: theme.spacing(2),
+      borderRadius: '12px',
+      boxShadow: theme.shadows[5],
+      backgroundColor: theme.palette.background.paper + 'cc',
+      backdropFilter: 'blur(4px)',
+      minWidth: '160px',
+      width: 'auto'
+    },
+    backgroundColor: 
+      severity === 'high' ? theme.palette.error.light :
+      severity === 'medium' ? theme.palette.warning.light :
+      theme.palette.success.light,
+    color: 
+      severity === 'high' ? theme.palette.error.contrastText :
+      severity === 'medium' ? theme.palette.warning.contrastText :
+      theme.palette.success.contrastText,
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: theme.spacing(1)
+  }));
+
+  // FIX: Initialization Phase UI
+  if (initializationPhase) {
+    return (
+      <Box sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '70vh',
+        p: 3
+      }}>
+        <Paper elevation={3} sx={{ p: 4, maxWidth: 600, width: '100%' }}>
+          <Typography variant="h4" gutterBottom sx={{ mb: 4 }}>
+            Plan Your Safe Route
+          </Typography>
+          <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
+            1. Enter Your Destination
+          </Typography>
+          <LoadScript
+            googleMapsApiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}
+            libraries={['places']}
+          >
+            <Autocomplete
+              onLoad={ac => (autocompleteRef.current = ac)}
+              onPlaceChanged={handlePlaceChanged}
+              options={{ componentRestrictions: { country: 'pk' } }}
+            >
+              <TextField
+                fullWidth
+                variant="outlined"
+                placeholder="Search for destination..."
+                inputRef={inputRef}
+                InputProps={{
+                  startAdornment: <LocationIcon color="action" sx={{ mr: 1 }} />
+                }}
+              />
+            </Autocomplete>
+          </LoadScript>
+          <Typography variant="h6" gutterBottom sx={{ mt: 4 }}>
+            2. Select Travel Mode
+          </Typography>
+          <FormControl component="fieldset" sx={{ width: '100%' }}>
+            <RadioGroup
+              row
+              value={travelMode}
+              onChange={(e) => setTravelMode(e.target.value)}
+              sx={{ justifyContent: 'space-around' }}
+            >
+              <FormControlLabel
+                value="driving"
+                control={<Radio />}
+                label={
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <DriveIcon sx={{ mr: 1 }} />
+                    Driving
+                  </Box>
+                }
+              />
+              <FormControlLabel
+                value="walking"
+                control={<Radio />}
+                label={
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <WalkIcon sx={{ mr: 1 }} />
+                    Walking
+                  </Box>
+                }
+              />
+            </RadioGroup>
+          </FormControl>
+          {locationError && (
+            <Typography color="error" sx={{ mt: 2 }}>
+              {locationError}
+            </Typography>
+          )}
+          <Button
+            variant="contained"
+            size="large"
+            fullWidth
+            sx={{ mt: 4, py: 2 }}
+            onClick={handleInitializeMap}
+            disabled={!destination}
+          >
+            Plan Safe Route
+          </Button>
+        </Paper>
+      </Box>
+    );
+  }
+
+  // Add these styled components
+const RouteInfoCard = styled(Paper)(({ theme }) => ({
+  position: 'absolute',
+  top: theme.spacing(2),
+  left: theme.spacing(2),
+  zIndex: 10,
+  padding: theme.spacing(2),
+  borderRadius: '12px',
+  boxShadow: theme.shadows[5],
+  backgroundColor: theme.palette.background.paper + 'cc',
+  backdropFilter: 'blur(4px)',
+  minWidth: '200px'
+}));
+
+const RouteLegend = styled(Box)(({ theme }) => ({
+  position: 'absolute',
+  top: theme.spacing(2),
+  right: theme.spacing(2),
+  zIndex: 10,
+  padding: theme.spacing(2),
+  borderRadius: '12px',
+  // boxShadow: theme.shadows[5],
+  backgroundColor: theme.palette.background.paper + 'cc',
+  backdropFilter: 'blur(4px)'
+}));
+
+const WarningAlert = styled(Paper)(({ severity, theme }) => ({
+  position: 'absolute',
+  top: theme.spacing(2),
+  left: '50%',
+  transform: 'translateX(-50%)',
+  zIndex: 10,
+  padding: theme.spacing(2),
+  borderRadius: '12px',
+  // boxShadow: theme.shadows[5],
+  maxWidth: '90%',
+  backgroundColor: 
+    severity === 'high' ? theme.palette.error.light :
+    severity === 'medium' ? theme.palette.warning.light :
+    theme.palette.success.light,
+  color: 
+    severity === 'high' ? theme.palette.error.contrastText :
+    severity === 'medium' ? theme.palette.warning.contrastText :
+    theme.palette.success.contrastText,
+  display: 'flex',
+  alignItems: 'center',
+  gap: theme.spacing(1)
+}));
+
+// Replace the return statement with this enhanced version
+// Replace the return statement with this responsive version
   return (
-  <div className="w-full h-full relative">
-    {/* Google Places Search bar */}
-    <div className="absolute top-2 left-1/2 transform -translate-x-1/2 z-20 w-full max-w-md">
-      <LoadScript
-        googleMapsApiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}
-        libraries={['places']}
+    <>
+      {/* Prevent scrollbars on the whole app */}
+      <style>{`
+        html, body, #root {
+          width: 100vw !important;
+          height: 100vh !important;
+          min-width: 100vw !important;
+          min-height: 100vh !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          overflow: hidden !important;
+        }
+      `}</style>
+      {/* Route calculation loading modal */}
+      <Modal
+        open={shouldCalculateRoute && !routeCalculated}
+        aria-labelledby="route-loading-title"
+        aria-describedby="route-loading-desc"
+        sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}
       >
-        <Autocomplete
-          onLoad={ac => (autocompleteRef.current = ac)}
-          onPlaceChanged={handlePlaceChanged}
-          options={{ componentRestrictions: { country: 'pk' } }}
+        <Box sx={{
+          bgcolor: 'background.paper',
+          borderRadius: 2,
+          boxShadow: 6,
+          p: 4,
+          minWidth: 260,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 2
+        }}>
+          <CircularProgress color="primary" size={36} thickness={4} />
+          <Box id="route-loading-title" sx={{ fontWeight: 600, fontSize: '1.1rem', mt: 1, mb: 0.5 }}>
+            Finding the safest route for you...
+          </Box>
+        </Box>
+      </Modal>
+      {/* Arrival popup */}
+      <Modal
+        open={hasArrived}
+        aria-labelledby="arrival-title"
+        aria-describedby="arrival-desc"
+        sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}
+      >
+        <Box sx={{
+          bgcolor: 'background.paper',
+          borderRadius: 2,
+          boxShadow: 6,
+          p: 4,
+          minWidth: 260,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 2
+        }}>
+          <CheckCircleOutlineIcon color="success" sx={{ fontSize: 48, mb: 1 }} />
+          <Box id="arrival-title" sx={{ fontWeight: 700, fontSize: '1.2rem', mb: 1 }}>
+            Congrats on reaching your destination safely!
+          </Box>
+        </Box>
+      </Modal>
+      <Box sx={{ width: '100vw', height: '100vh', minHeight: '100vh', minWidth: '100vw', position: 'relative', overflow: 'hidden' }}>
+      {/* Map Container */}
+      <Box
+        ref={mapContainer}
+        sx={{ 
+          width: '100vw',
+          height: '100vh',
+          minHeight: '100vh',
+          minWidth: '100vw',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          zIndex: 1
+        }}
+      />
+
+      {/* Route Information Card - Responsive */}
+      {remainingDistance !== null && (
+        <ResponsiveRouteInfoCard data-overlay="distance">
+          <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' }, fontSize: { xs: '0.7rem', sm: '0.9rem' } }}>
+            Remaining Distance
+          </Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'block', sm: 'none' }, fontSize: '0.7rem' }}>
+            Distance
+          </Typography>
+          <Typography 
+            variant="h6" 
+            sx={{ 
+              fontWeight: 'bold',
+              fontSize: { xs: '1rem', sm: '1.5rem' },
+              lineHeight: 1.1
+            }}
+          >
+            {remainingDistance >= 1000 
+              ? `${(remainingDistance/1000).toFixed(2)} km` 
+              : `${Math.round(remainingDistance)} m`}
+          </Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: '0.6rem', sm: '0.8rem' } }}>
+            {travelMode === 'walking' ? 'Walking' : 'Driving'} route
+          </Typography>
+        </ResponsiveRouteInfoCard>
+      )}
+
+      {/* Route Legend - Responsive */}
+      <ResponsiveRouteLegend data-overlay="legend">
+        <Typography variant="caption" gutterBottom sx={{ display: { xs: 'none', sm: 'block' }, fontSize: { xs: '0.7rem', sm: '0.9rem' } }}>
+          Route Safety
+        </Typography>
+        <Box sx={{ 
+          display: 'grid',
+          gridTemplateColumns: '1fr',
+          gap: 0.5
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#3a86ff' }} />
+            <Typography variant="caption" sx={{ fontSize: { xs: '0.65rem', sm: '0.8rem' } }}>Normal</Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#00ff00' }} />
+            <Typography variant="caption" sx={{ fontSize: { xs: '0.65rem', sm: '0.8rem' } }}>Safe</Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#ff6600' }} />
+            <Typography variant="caption" sx={{ fontSize: { xs: '0.65rem', sm: '0.8rem' } }}>Low Risk</Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#ff0000' }} />
+            <Typography variant="caption" sx={{ fontSize: { xs: '0.65rem', sm: '0.8rem' } }}>High Risk</Typography>
+          </Box>
+        </Box>
+      </ResponsiveRouteLegend>
+
+      {/* Warning Alert - Responsive */}
+      {riskWarning && warningOpen && (
+        <ResponsiveWarningAlert 
+          severity={
+            riskWarning.level.includes('HIGH') ? 'high' : 
+            riskWarning.level.includes('MODERATE') ? 'medium' : 'low'
+          }
         >
-          <input
-            ref={inputRef}
-            type="text"
-            placeholder="Search for destination..."
-            className="w-full px-4 py-2 rounded shadow border border-gray-300 focus:outline-none focus:ring"
-          />
-        </Autocomplete>
-      </LoadScript>
-    </div>
+          {riskWarning.level.includes('HIGH') ? <ErrorIcon fontSize="small" /> :
+          riskWarning.level.includes('MODERATE') ? <WarningIcon fontSize="small" /> : <CheckCircleIcon fontSize="small" />}
+          <Box>
+            <Typography variant="subtitle2" sx={{ 
+              fontWeight: 'bold',
+              fontSize: { xs: '0.8rem', sm: '0.9rem' }
+            }}>
+              {riskWarning.level}
+            </Typography>
+            <Typography variant="body2" sx={{ fontSize: { xs: '0.7rem', sm: '0.8rem' } }}>
+              {riskWarning.message}
+            </Typography>
+          </Box>
+          <Box sx={{ display: { xs: 'flex', sm: 'none' }, ml: 'auto' }}>
+            <CloseIcon 
+              fontSize="small" 
+              sx={{ cursor: 'pointer' }} 
+              onClick={() => setWarningOpen(false)} 
+            />
+          </Box>
+        </ResponsiveWarningAlert>
+      )}
 
-    {/* Map Container */}
-    <div
-      ref={mapContainer}
-      className="w-full h-full"
-      style={{ height: '500px' }}
-    />
+      {/* Add margin to overlays so they don't overlap with warning box on mobile */}
+      <style>{`
+        @media (max-width: 600px) {
+          .MuiPaper-root[data-overlay="legend"] {
+            margin-top: 38px !important;
+          }
+        }
+      `}</style>
 
-    {/* Loading Map Overlay */}
-    {!mapLoaded && (
-      <div className="absolute inset-0 flex items-center justify-center bg-gray-100 bg-opacity-75">
-        <div className="text-lg font-semibold">Loading map...</div>
-      </div>
-    )}
+      {/* Navigation Controls - Responsive */}
+      {mapLoaded && currentPosition && end && !locationError && (
+        <Box sx={{
+          position: 'absolute',
+          bottom: { xs: 8, sm: 20 },
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 10,
+          width: { xs: '96vw', sm: 'auto' },
+          maxWidth: { xs: '98vw', sm: '400px' },
+          px: { xs: 0, sm: 0 }
+        }}>
+          {!isNavigating ? (
+            <Button
+              variant="contained"
+              color="primary"
+              size="large"
+              startIcon={<LocationIcon fontSize={window.innerWidth < 600 ? "small" : "medium"} />}
+              onClick={handleStartNavigation}
+              sx={{
+                borderRadius: '24px',
+                boxShadow: 3,
+                px: { xs: 1, sm: 4 },
+                py: { xs: 0.5, sm: 1.5 },
+                fontWeight: 'bold',
+                width: '100%',
+                fontSize: { xs: '0.9rem', sm: '1rem' },
+                minHeight: { xs: '36px', sm: '48px' }
+              }}
+              fullWidth
+            >
+              <Typography sx={{ fontSize: { xs: '0.8rem', sm: '1rem' } }}>
+                Start Navigation
+              </Typography>
+            </Button>
+          ) : (
+            <Button
+              variant="contained"
+              color="error"
+              size="large"
+              startIcon={<WarningIcon fontSize={window.innerWidth < 600 ? "small" : "medium"} />}
+              onClick={handleStopNavigation}
+              sx={{
+                borderRadius: '24px',
+                boxShadow: 3,
+                px: { xs: 1, sm: 4 },
+                py: { xs: 0.5, sm: 1.5 },
+                fontWeight: 'bold',
+                width: '100%',
+                fontSize: { xs: '0.9rem', sm: '1rem' },
+                minHeight: { xs: '36px', sm: '48px' }
+              }}
+              fullWidth
+            >
+              <Typography sx={{ fontSize: { xs: '0.8rem', sm: '1rem' } }}>
+                Stop Navigation
+              </Typography>
+            </Button>
+          )}
+        </Box>
+      )}
+      {/* Recenter button during navigation */}
+      {isNavigating && !isMapCentered && (
+        <Box sx={{
+          position: 'absolute',
+          bottom: { xs: 80, sm: 100 },
+          right: { xs: 16, sm: 32 },
+          zIndex: 20
+        }}>
+          <Button
+            variant="contained"
+            color="primary"
+            size="medium"
+            onClick={handleRecenter}
+            sx={{ borderRadius: '50%', minWidth: 0, width: 48, height: 48, p: 0, boxShadow: 3 }}
+          >
+            <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="14" cy="14" r="12" stroke="#fff" strokeWidth="2" fill="#2196f3" />
+              <path d="M14 8v8m0 0l4-4m-4 4l-4-4" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </Button>
+        </Box>
+      )}
 
-    {/* Loading Danger Zones Overlay */}
-    {loading && (
-      <div className="absolute top-20 left-1/2 transform -translate-x-1/2 bg-white p-2 rounded shadow flex items-center">
-        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900 mr-2"></div>
-        <span>Loading danger zones...</span>
-      </div>
-    )}
-
-    {/* Location Error Overlay */}
-    {locationError && (
-      <div className="absolute top-20 left-1/2 transform -translate-x-1/2 bg-red-100 text-red-800 p-2 rounded shadow max-w-md text-center">
-        {locationError}
-      </div>
-    )}
-
-    {/* Legend */}
-    <div className="absolute bottom-4 left-4 bg-white p-2 rounded shadow text-sm">
-      <div className="flex items-center mb-1">
-        <div className="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
-        <span>Your Location</span>
-      </div>
-      <div className="flex items-center mb-1">
-        <div className="w-3 h-3 rounded-full bg-red-500 mr-2"></div>
-        <span>Destination</span>
-      </div>
-      <div className="flex items-center mb-1">
-        <div className="w-3 h-3 rounded-full bg-blue-500 mr-2"></div>
-        <span>Safe Route</span>
-      </div>
-      <div className="flex items-center mb-1">
-        <div className="w-3 h-3 rounded-full bg-yellow-500 mr-2"></div>
-        <span>Avoidance Route</span>
-      </div>
-      <div className="flex items-center mb-1">
-        <div className="w-3 h-3 rounded-full bg-[#bbff00] mr-2 border border-gray-400"></div>
-        <span>Low Severity Danger Zone</span>
-      </div>
-      <div className="flex items-center mb-1">
-        <div className="w-3 h-3 rounded-full bg-[#ffff00] mr-2 border border-gray-400"></div>
-        <span>Medium Severity Danger Zone</span>
-      </div>
-      <div className="flex items-center mb-1">
-        <div className="w-3 h-3 rounded-full bg-[#ff0000] mr-2 border border-gray-400"></div>
-        <span>High Severity Danger Zone</span>
-      </div>
-    </div>
-  </div>
-)};
+      {/* Loading Danger Zones Overlay - Responsive */}
+      {loading && (
+        <Box sx={{
+          position: 'absolute',
+          top: { xs: 8, sm: 20 },
+          left: '50%',
+          transform: 'translateX(-50%)',
+          bgcolor: 'background.paper',
+          p: { xs: 1, sm: 1.5 },
+          borderRadius: 1,
+          boxShadow: 3,
+          display: 'flex',
+          alignItems: 'center',
+          zIndex: 20,
+          minWidth: { xs: '120px', sm: '180px' }
+        }}>
+          <CircularProgress size={18} sx={{ mr: 1 }} />
+          <Typography variant="body2" sx={{ fontSize: { xs: '0.7rem', sm: '0.9rem' } }}>
+            Loading danger zones...
+          </Typography>
+        </Box>
+      )}
+    </Box>
+    </>
+  );
+}

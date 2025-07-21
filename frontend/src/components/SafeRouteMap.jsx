@@ -4,7 +4,8 @@ import { LoadScript, Autocomplete } from '@react-google-maps/api';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import axios from 'axios';
-import { TextField, Button, Typography, Box, Paper, Radio, RadioGroup, FormControlLabel, styled } from '@mui/material';
+import { TextField, Button, Typography, Box, Paper, Radio, RadioGroup, FormControlLabel, styled, InputAdornment, Alert,
+  useTheme } from '@mui/material';
 import FormControl from '@mui/material/FormControl';
 import DriveIcon from '@mui/icons-material/DirectionsCar';
 import WalkIcon from '@mui/icons-material/DirectionsWalk';
@@ -20,6 +21,7 @@ import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
 export default function LiveRouteMap({ end: propEnd }) {
+  const theme = useTheme();
   const mapContainer = useRef(null);
   const map = useRef(null);
   const autocompleteRef = useRef();
@@ -80,14 +82,19 @@ export default function LiveRouteMap({ end: propEnd }) {
     destinationMarker.current = new mapboxgl.Marker({ color: '#FF0000' });
     map.current.on('load', () => {
       setMapLoaded(true);
+      setLoading(true); // Start loading as soon as map loads
       setTimeout(() => {
         startPositionTracking();
       }, 100);
     });
+    map.current.on('dragstart', () => setIsMapCentered(false));
+    map.current.on('zoomstart', () => setIsMapCentered(false));
     map.current.on('error', (e) => {
       setLocationError("Failed to load map. Please refresh the page.");
     });
     return () => {
+      map.current.off('dragstart');
+      map.current.off('zoomstart');
       if (positionWatchId.current) {
         navigator.geolocation.clearWatch(positionWatchId.current);
       }
@@ -96,14 +103,29 @@ export default function LiveRouteMap({ end: propEnd }) {
         map.current = null;
       }
     };
-  }, []);
+  }, [map.current]);
+
+  // Draw current location and destination markers as soon as both are available and map is loaded
+  useEffect(() => {
+    if (!mapLoaded || !currentPosition || !end) return;
+    // Draw user marker
+    if (map.current && userMarker.current) {
+      userMarker.current.setLngLat(currentPosition).addTo(map.current);
+    }
+    // Draw destination marker
+    if (map.current && destinationMarker.current) {
+      destinationMarker.current.setLngLat(end)
+        .setPopup(new mapboxgl.Popup().setHTML("<b>Destination</b>"))
+        .addTo(map.current);
+    }
+  }, [mapLoaded, currentPosition, end]);
 
   // Danger zones fetch
   useEffect(() => {
     if (!currentPosition) return;
     const fetchDangerZones = async () => {
       try {
-        setLoading(true);
+        // setLoading(true); // REMOVE this line, loading is now set on map load
         const response = await axios.get('http://localhost:5000/report/all-reports', {
           headers: {
             Authorization: `Bearer ${localStorage.getItem('authToken')}`,
@@ -134,7 +156,7 @@ export default function LiveRouteMap({ end: propEnd }) {
       } catch (err) {
         setLocationError('Failed to load danger zone data');
       } finally {
-        setLoading(false);
+        // setLoading(false); // REMOVE this line, loading will be set after drawing zones
       }
     };
     fetchDangerZones();
@@ -144,6 +166,7 @@ export default function LiveRouteMap({ end: propEnd }) {
   useEffect(() => {
     if (mapLoaded && dangerZones.length > 0) {
       drawAllDangerZones();
+      setLoading(false); // Set loading to false after drawing all danger zones
     }
   }, [mapLoaded, dangerZones]);
 
@@ -989,26 +1012,8 @@ const calculateCentroid = (zones) => {
     setLocationError(null);
 
     if (map.current && userMarker.current) {
-      // Update marker based on navigation state
-      if (isNavigating) {
-        // Remove existing marker and create navigation arrow
-        userMarker.current.remove();
-        userMarker.current = createNavigationMarker(newPosition, userHeading);
-        userMarker.current.addTo(map.current);
-        // Keep map centered on user if isMapCentered is true
-        if (isMapCentered) {
-          map.current.flyTo({
-            center: newPosition,
-            zoom: 16,
-            essential: true
-          });
-        }
-      } else {
-        userMarker.current
-          .setLngLat(newPosition)
-          .addTo(map.current);
-      }
-      
+      // Always update marker and center map on first position
+      userMarker.current.setLngLat(newPosition).addTo(map.current);
       if (!end) {
         map.current.flyTo({
           center: newPosition,
@@ -1016,6 +1021,15 @@ const calculateCentroid = (zones) => {
           essential: true
         });
       }
+      // If navigating, always keep map centered on user  
+        map.current.easeTo({
+          center: newPosition,
+          zoom: 16,
+          essential: true,
+          duration: 1000
+        });
+        console.log("Eased to new position");
+      
     }
   };
 
@@ -1064,7 +1078,6 @@ const calculateCentroid = (zones) => {
         zoom: 16,
         essential: true
       });
-      setIsMapCentered(true);
     }
   };
 
@@ -1234,7 +1247,6 @@ const calculateCentroid = (zones) => {
     gap: theme.spacing(1)
   }));
 
-  // FIX: Initialization Phase UI
   if (initializationPhase) {
     return (
       <Box sx={{
@@ -1242,78 +1254,276 @@ const calculateCentroid = (zones) => {
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        minHeight: '70vh',
-        p: 3
+        minHeight: '100vh',
+        p: 3,
+        background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)'
       }}>
-        <Paper elevation={3} sx={{ p: 4, maxWidth: 600, width: '100%' }}>
-          <Typography variant="h4" gutterBottom sx={{ mb: 4 }}>
-            Plan Your Safe Route
-          </Typography>
-          <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
-            1. Enter Your Destination
-          </Typography>
-          <LoadScript
-            googleMapsApiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}
-            libraries={['places']}
-          >
-            <Autocomplete
-              onLoad={ac => (autocompleteRef.current = ac)}
-              onPlaceChanged={handlePlaceChanged}
-              options={{ componentRestrictions: { country: 'pk' } }}
+        <Paper 
+          elevation={6} 
+          sx={{ 
+            p: { xs: 3, md: 4 },
+            maxWidth: 600,
+            width: '100%',
+            borderRadius: 3,
+            background: 'rgba(255, 255, 255, 0.95)',
+            backdropFilter: 'blur(8px)',
+            boxShadow: '0 8px 32px rgba(31, 38, 135, 0.15)',
+            border: '1px solid rgba(255, 255, 255, 0.18)',
+            overflow: 'hidden',
+            position: 'relative',
+            '&:before': {
+              content: '""',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 6,
+              background: 'linear-gradient(90deg, #3f51b5 0%, #2196f3 100%)'
+            }
+          }}
+        >
+          <Box sx={{ textAlign: 'center', mb: 4 }}>
+            <LocationIcon 
+              sx={{ 
+                fontSize: 60,
+                color: 'primary.main',
+                mb: 2,
+                background: 'rgba(63, 81, 181, 0.1)',
+                borderRadius: '50%',
+                p: 1.5
+              }} 
+            />
+            <Typography 
+              variant="h4" 
+              gutterBottom 
+              sx={{ 
+                mb: 2,
+                fontWeight: 700,
+                color: 'text.primary',
+                background: 'linear-gradient(90deg, #3f51b5 0%, #2196f3 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent'
+              }}
             >
-              <TextField
-                fullWidth
-                variant="outlined"
-                placeholder="Search for destination..."
-                inputRef={inputRef}
-                InputProps={{
-                  startAdornment: <LocationIcon color="action" sx={{ mr: 1 }} />
-                }}
-              />
-            </Autocomplete>
-          </LoadScript>
-          <Typography variant="h6" gutterBottom sx={{ mt: 4 }}>
-            2. Select Travel Mode
-          </Typography>
-          <FormControl component="fieldset" sx={{ width: '100%' }}>
-            <RadioGroup
-              row
-              value={travelMode}
-              onChange={(e) => setTravelMode(e.target.value)}
-              sx={{ justifyContent: 'space-around' }}
-            >
-              <FormControlLabel
-                value="driving"
-                control={<Radio />}
-                label={
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <DriveIcon sx={{ mr: 1 }} />
-                    Driving
-                  </Box>
-                }
-              />
-              <FormControlLabel
-                value="walking"
-                control={<Radio />}
-                label={
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <WalkIcon sx={{ mr: 1 }} />
-                    Walking
-                  </Box>
-                }
-              />
-            </RadioGroup>
-          </FormControl>
-          {locationError && (
-            <Typography color="error" sx={{ mt: 2 }}>
-              {locationError}
+              Plan Your Safe Route
             </Typography>
+            <Typography 
+              variant="subtitle1" 
+              sx={{ 
+                color: 'text.secondary',
+                maxWidth: 400,
+                mx: 'auto'
+              }}
+            >
+              Enter your destination and travel preferences to find the safest route
+            </Typography>
+          </Box>
+  
+          <Box sx={{ mb: 4 }}>
+            <Typography 
+              variant="subtitle2" 
+              sx={{ 
+                mb: 1.5,
+                display: 'flex',
+                alignItems: 'center',
+                color: 'primary.main',
+                fontWeight: 600
+              }}
+            >
+              <Box 
+                sx={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: '50%',
+                  background: 'primary.main',
+                  color: 'white',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  mr: 1.5,
+                  fontSize: 14
+                }}
+              >
+                1
+              </Box>
+              Enter Your Destination
+            </Typography>
+            <LoadScript
+              googleMapsApiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}
+              libraries={['places']}
+            >
+              <Autocomplete
+                onLoad={ac => (autocompleteRef.current = ac)}
+                onPlaceChanged={handlePlaceChanged}
+                options={{ componentRestrictions: { country: 'pk' } }}
+              >
+                <TextField
+                  fullWidth
+                  variant="outlined"
+                  placeholder="Search for destination..."
+                  inputRef={inputRef}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <LocationIcon color="primary" />
+                      </InputAdornment>
+                    ),
+                    sx: {
+                      '& .MuiOutlinedInput-notchedOutline': {
+                        borderColor: 'rgba(0, 0, 0, 0.1)'
+                      },
+                      '&:hover .MuiOutlinedInput-notchedOutline': {
+                        borderColor: 'primary.main'
+                      }
+                    }
+                  }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 2,
+                      background: 'rgba(255, 255, 255, 0.8)'
+                    }
+                  }}
+                />
+              </Autocomplete>
+            </LoadScript>
+          </Box>
+  
+          <Box sx={{ mb: 4 }}>
+            <Typography 
+              variant="subtitle2" 
+              sx={{ 
+                mb: 1.5,
+                display: 'flex',
+                alignItems: 'center',
+                color: 'primary.main',
+                fontWeight: 600
+              }}
+            >
+              <Box 
+                sx={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: '50%',
+                  background: 'primary.main',
+                  color: 'white',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  mr: 1.5,
+                  fontSize: 14
+                }}
+              >
+                2
+              </Box>
+              Select Travel Mode
+            </Typography>
+            <FormControl component="fieldset" sx={{ width: '100%' }}>
+              <RadioGroup
+                row
+                value={travelMode}
+                onChange={(e) => setTravelMode(e.target.value)}
+                sx={{ 
+                  justifyContent: 'space-between',
+                  gap: 2,
+                  '& .MuiFormControlLabel-root': {
+                    m: 0,
+                    flex: 1
+                  }
+                }}
+              >
+                <FormControlLabel
+                  value="driving"
+                  control={<Radio color="primary" />}
+                  label={
+                    <Paper
+                      elevation={travelMode === 'driving' ? 3 : 0}
+                      sx={{
+                        p: 2,
+                        borderRadius: 2,
+                        width: '100%',
+                        border: `2px solid ${travelMode === 'driving' ? theme.palette.primary.main : 'rgba(0, 0, 0, 0.1)'}`,
+                        transition: 'all 0.2s ease',
+                        '&:hover': {
+                          borderColor: travelMode === 'driving' ? theme.palette.primary.main : 'rgba(0, 0, 0, 0.2)'
+                        }
+                      }}
+                    >
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <DriveIcon color={travelMode === 'driving' ? 'primary' : 'action'} sx={{ mr: 1.5 }} />
+                        <Typography 
+                          sx={{ 
+                            fontWeight: travelMode === 'driving' ? 600 : 400,
+                            color: travelMode === 'driving' ? 'primary.main' : 'text.primary'
+                          }}
+                        >
+                          Driving
+                        </Typography>
+                      </Box>
+                    </Paper>
+                  }
+                  sx={{ flex: 1 }}
+                />
+                <FormControlLabel
+                  value="walking"
+                  control={<Radio color="primary" />}
+                  label={
+                    <Paper
+                      elevation={travelMode === 'walking' ? 3 : 0}
+                      sx={{
+                        p: 2,
+                        borderRadius: 2,
+                        width: '100%',
+                        border: `2px solid ${travelMode === 'walking' ? theme.palette.primary.main : 'rgba(0, 0, 0, 0.1)'}`,
+                        transition: 'all 0.2s ease',
+                        '&:hover': {
+                          borderColor: travelMode === 'walking' ? theme.palette.primary.main : 'rgba(0, 0, 0, 0.2)'
+                        }
+                      }}
+                    >
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <WalkIcon color={travelMode === 'walking' ? 'primary' : 'action'} sx={{ mr: 1.5 }} />
+                        <Typography 
+                          sx={{ 
+                            fontWeight: travelMode === 'walking' ? 600 : 400,
+                            color: travelMode === 'walking' ? 'primary.main' : 'text.primary'
+                          }}
+                        >
+                          Walking
+                        </Typography>
+                      </Box>
+                    </Paper>
+                  }
+                  sx={{ flex: 1 }}
+                />
+              </RadioGroup>
+            </FormControl>
+          </Box>
+  
+          {locationError && (
+            <Alert severity="error" sx={{ mb: 3 }}>
+              {locationError}
+            </Alert>
           )}
+  
           <Button
             variant="contained"
             size="large"
             fullWidth
-            sx={{ mt: 4, py: 2 }}
+            sx={{ 
+              mt: 2,
+              py: 2,
+              borderRadius: 2,
+              fontWeight: 600,
+              fontSize: '1rem',
+              textTransform: 'none',
+              boxShadow: '0 4px 12px rgba(63, 81, 181, 0.2)',
+              '&:hover': {
+                boxShadow: '0 6px 16px rgba(63, 81, 181, 0.3)',
+                transform: 'translateY(-1px)'
+              },
+              transition: 'all 0.2s ease',
+              background: 'linear-gradient(90deg, #3f51b5 0%, #2196f3 100%)'
+            }}
             onClick={handleInitializeMap}
             disabled={!destination}
           >
@@ -1372,6 +1582,17 @@ const WarningAlert = styled(Paper)(({ severity, theme }) => ({
   alignItems: 'center',
   gap: theme.spacing(1)
 }));
+
+const handleRecenter = () => {
+  if (map.current && currentPosition) {
+    map.current.flyTo({
+      center: currentPosition,
+      zoom: 16,
+      essential: true
+    });
+    setIsMapCentered(true);
+  }
+};
 
 // Replace the return statement with this enhanced version
 // Replace the return statement with this responsive version
@@ -1492,19 +1713,19 @@ const WarningAlert = styled(Paper)(({ severity, theme }) => ({
         }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#3a86ff' }} />
-            <Typography variant="caption" sx={{ fontSize: { xs: '0.65rem', sm: '0.8rem' } }}>Normal</Typography>
+            <Typography variant="caption" sx={{ fontSize: { xs: '0.65rem', sm: '0.8rem' }, fontWeight: 'bold' }}>Normal</Typography>
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#00ff00' }} />
-            <Typography variant="caption" sx={{ fontSize: { xs: '0.65rem', sm: '0.8rem' } }}>Safe</Typography>
+            <Typography variant="caption" sx={{ fontSize: { xs: '0.65rem', sm: '0.8rem' }, fontWeight: 'bold' }}>Safe</Typography>
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#ff6600' }} />
-            <Typography variant="caption" sx={{ fontSize: { xs: '0.65rem', sm: '0.8rem' } }}>Low Risk</Typography>
+            <Typography variant="caption" sx={{ fontSize: { xs: '0.65rem', sm: '0.8rem' }, fontWeight: 'bold' }}>Low Risk</Typography>
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#ff0000' }} />
-            <Typography variant="caption" sx={{ fontSize: { xs: '0.65rem', sm: '0.8rem' } }}>High Risk</Typography>
+            <Typography variant="caption" sx={{ fontSize: { xs: '0.65rem', sm: '0.8rem' }, fontWeight: 'bold' }}>High Risk</Typography>
           </Box>
         </Box>
       </ResponsiveRouteLegend>
@@ -1611,27 +1832,38 @@ const WarningAlert = styled(Paper)(({ severity, theme }) => ({
         </Box>
       )}
       {/* Recenter button during navigation */}
-      {isNavigating && !isMapCentered && (
-        <Box sx={{
+      {isNavigating && (
+      <Box
+        ref={recenterButtonRef}
+        sx={{
           position: 'absolute',
           bottom: { xs: 80, sm: 100 },
           right: { xs: 16, sm: 32 },
           zIndex: 20
-        }}>
-          <Button
-            variant="contained"
-            color="primary"
-            size="medium"
-            onClick={handleRecenter}
-            sx={{ borderRadius: '50%', minWidth: 0, width: 48, height: 48, p: 0, boxShadow: 3 }}
-          >
-            <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="14" cy="14" r="12" stroke="#fff" strokeWidth="2" fill="#2196f3" />
-              <path d="M14 8v8m0 0l4-4m-4 4l-4-4" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </Button>
-        </Box>
-      )}
+        }}
+      >
+        <Button
+          variant="contained"
+          color="primary"
+          size="medium"
+          onClick={handleRecenter}
+          sx={{
+            borderRadius: '50%',
+            minWidth: 0,
+            width: 48,
+            height: 48,
+            p: 0,
+            boxShadow: 3,
+            backgroundColor: theme.palette.primary.main,
+            '&:hover': {
+              backgroundColor: theme.palette.primary.dark
+            }
+          }}
+        >
+          <LocationIcon sx={{ color: 'white' }} />
+        </Button>
+      </Box>
+    )}
 
       {/* Loading Danger Zones Overlay - Responsive */}
       {loading && (

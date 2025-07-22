@@ -7,11 +7,9 @@ const transporter = nodemailer.createTransport({
   auth: {
     type: 'OAuth2',
     user: process.env.EMAIL_USERNAME,
-    pass: process.env.EMAIL_PASSWORD,
     clientId: process.env.CLIENT_ID,
     refreshToken: process.env.REFRESH_TOKEN,
-    clientSecret: process.env.CLIENT_SECRET,
-    accessToken: process.env.ACCESS_TOKEN
+    clientSecret: process.env.CLIENT_SECRET
   }
 });
 

@@ -15,20 +15,20 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import CircularProgress from '@mui/material/CircularProgress';
 import CloseIcon from '@mui/icons-material/Close';
+import DirectionsIcon from '@mui/icons-material/Directions';
 import Modal from '@mui/material/Modal';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
-export default function LiveRouteMap({ end: propEnd }) {
+export default function SafeRouteMap({ end: propEnd }) {
   const theme = useTheme();
   const mapContainer = useRef(null);
   const map = useRef(null);
   const autocompleteRef = useRef();
   const inputRef = useRef();
-  const userMarker = useRef(null);
   const destinationMarker = useRef(null);
-  const positionWatchId = useRef(null);
+  const geolocateControlRef = useRef();
 
   const [initializationPhase, setInitializationPhase] = useState(true);
   const [travelMode, setTravelMode] = useState('driving');
@@ -51,6 +51,7 @@ export default function LiveRouteMap({ end: propEnd }) {
   const [isMapCentered, setIsMapCentered] = useState(true);
   const recenterButtonRef = useRef(null);
   const [hasArrived, setHasArrived] = useState(false);
+  const [routeSteps, setRouteSteps] = useState([]);
   
   // Map initialization
   const handleInitializeMap = () => {
@@ -64,61 +65,29 @@ export default function LiveRouteMap({ end: propEnd }) {
     }, 100);
   };
 
-  useEffect(() => {
-    if (map.current || !mapContainer.current) return;
-    if (!mapboxgl.accessToken) {
-      setLocationError("Map configuration error. Please check your API keys.");
-      return;
-    }
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/streets-v12',
-      center: [74.255, 31.39],
-      zoom: 13
-    });
-    map.current.addControl(new mapboxgl.NavigationControl());
-    map.current.addControl(new mapboxgl.ScaleControl());
-    userMarker.current = new mapboxgl.Marker({ color: '#00FF00' });
-    destinationMarker.current = new mapboxgl.Marker({ color: '#FF0000' });
-    map.current.on('load', () => {
-      setMapLoaded(true);
-      setLoading(true); // Start loading as soon as map loads
-      setTimeout(() => {
-        startPositionTracking();
-      }, 100);
-    });
-    map.current.on('dragstart', () => setIsMapCentered(false));
-    map.current.on('zoomstart', () => setIsMapCentered(false));
-    map.current.on('error', (e) => {
-      setLocationError("Failed to load map. Please refresh the page.");
-    });
-    return () => {
-      map.current.off('dragstart');
-      map.current.off('zoomstart');
-      if (positionWatchId.current) {
-        navigator.geolocation.clearWatch(positionWatchId.current);
-      }
-      if (map.current) {
-        map.current.remove();
-        map.current = null;
-      }
-    };
-  }, [map.current]);
+  // useEffect(() => {
+  //   if (map.current && currentPosition) {
+  //     map.current.flyTo({
+  //       center: currentPosition,
+  //       zoom: 14,
+  //       essential: true
+  //     });
+  //   }
+  // }, [currentPosition, mapLoaded]);
+
 
   // Draw current location and destination markers as soon as both are available and map is loaded
   useEffect(() => {
-    if (!mapLoaded || !currentPosition || !end) return;
-    // Draw user marker
-    if (map.current && userMarker.current) {
-      userMarker.current.setLngLat(currentPosition).addTo(map.current);
-    }
-    // Draw destination marker
+    if (!mapLoaded || !end) return;
+    
+    // Only need to handle destination marker now
     if (map.current && destinationMarker.current) {
-      destinationMarker.current.setLngLat(end)
+      destinationMarker.current
+        .setLngLat(end)
         .setPopup(new mapboxgl.Popup().setHTML("<b>Destination</b>"))
         .addTo(map.current);
     }
-  }, [mapLoaded, currentPosition, end]);
+  }, [mapLoaded, end]);
 
   // Danger zones fetch
   useEffect(() => {
@@ -190,29 +159,102 @@ export default function LiveRouteMap({ end: propEnd }) {
 
   const initializeMap = () => {
     if (map.current || !mapContainer.current) return;
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/streets-v12',
-      center: currentPosition || [74.255, 31.39],
-      zoom: 13
-    });
-    map.current.addControl(new mapboxgl.NavigationControl());
-    map.current.addControl(new mapboxgl.ScaleControl());
-    userMarker.current = new mapboxgl.Marker({ color: '#00FF00' });
-    destinationMarker.current = new mapboxgl.Marker({ color: '#FF0000' });
-    map.current.on('load', () => {
-      setMapLoaded(true);
-      startPositionTracking();
-      if (destination) updateDestinationMarker(destination);
-    });
-    return () => {
-      if (positionWatchId.current) navigator.geolocation.clearWatch(positionWatchId.current);
-      if (map.current) {
-        map.current.remove();
-        map.current = null;
-      }
-    };
+
+    if (!navigator.geolocation) {
+      setLocationError("Geolocation is not supported by your browser.");
+      console.log('Location is not turned on')
+      return;
+    }
+
+    setLoading(true); // Optional: show loading spinner
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const userCoords = [pos.coords.longitude, pos.coords.latitude];
+        setCurrentPosition(userCoords); // Set for later use
+
+        map.current = new mapboxgl.Map({
+          container: mapContainer.current,
+          style: 'mapbox://styles/mapbox/streets-v12',
+          center: userCoords,
+          zoom: 16
+        });
+
+        // Add controls
+        map.current.addControl(new mapboxgl.NavigationControl());
+        map.current.addControl(new mapboxgl.ScaleControl());
+
+        // Only initialize destination marker
+        destinationMarker.current = new mapboxgl.Marker({ color: '#FF0000' });
+
+        // Add GeolocateControl
+        geolocateControlRef.current = new mapboxgl.GeolocateControl({
+          positionOptions: { enableHighAccuracy: true },
+          trackUserLocation: true,
+          showUserHeading: true,
+          showUserLocation: true // This shows Mapbox's default marker
+        });
+        map.current.addControl(geolocateControlRef.current);
+
+        // Set up event handlers
+        geolocateControlRef.current.on('geolocate', (position) => {
+          console.log('Mapbox geolocate event:', position);
+          const newPosition = [
+            position.coords.longitude,
+            position.coords.latitude
+          ];
+          setCurrentPosition(newPosition);
+          setUserHeading(position.coords.heading || 0);
+          map.current.setCenter(newPosition);
+        });
+
+        geolocateControlRef.current.on('error', (error) => {
+          setLocationError(getLocationErrorMessage(error));
+        });
+
+        // Automatically trigger geolocation on initialization
+        map.current.on('load', () => {
+          setMapLoaded(true);
+          setTimeout(() => {
+            geolocateControlRef.current.trigger();
+            if (destination) updateDestinationMarker(destination);
+          }, 2000);
+        });
+
+        setLoading(false); 
+      },
+      (err) => {
+        setLocationError("Please turn on your location and allow access to use this feature.");
+        setLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+    );
   };
+
+  useEffect(() => {
+    if (mapLoaded && map.current) {
+      if (geolocateControlRef.current) {
+        setTimeout(() => geolocateControlRef.current.trigger(), 1000);
+      }
+    }
+  }, [mapLoaded]);
+
+  // Fallback: If currentPosition is still null after map load, use browser geolocation
+  useEffect(() => {
+    if (!currentPosition && mapLoaded && window.navigator.geolocation) {
+      window.navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          console.log('Browser geolocation fallback:', pos);
+          setCurrentPosition([pos.coords.longitude, pos.coords.latitude]);
+          setUserHeading(pos.coords.heading || 0);
+        },
+        (err) => {
+          setLocationError(getLocationErrorMessage(err));
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    }
+  }, [currentPosition, mapLoaded]);
 
   // Route calculation logic
   const updateRouteWithAvoidance = async (startPos, endPos) => {
@@ -235,7 +277,7 @@ export default function LiveRouteMap({ end: propEnd }) {
         drawRoute(directRoute, hasLocationZones ? '#ff6600' : '#3a86ff');
         setRiskWarning(hasLocationZones ? {
           level: "⚠️ CAUTION",
-          message: "You are starting or ending in a danger zone area. Exercise caution.",
+          message: "You are starting or ending in a danger zone area. Stay alert.",
           color: "bg-yellow-100 text-yellow-800"
         } : null);
         setRouteCalculated(true);
@@ -252,10 +294,10 @@ export default function LiveRouteMap({ end: propEnd }) {
         if (avoidanceIntersections.length === 0) {
           drawRoute(avoidanceRoute, '#00ff00');
           setRiskWarning({
-            level: "✅ SAFE ROUTE",
+            level: "SAFE ROUTE",
             message: hasLocationZones
               ? "Route avoids all danger zones, but your start or destination is inside a danger zone. Stay alert at these locations."
-              : "Route successfully avoids all danger zones. Safe travels!",
+              : "Route successfully avoids all danger zones. Safe travel!",
             color: "bg-green-100 text-green-800"
           });
         } else {
@@ -282,10 +324,10 @@ export default function LiveRouteMap({ end: propEnd }) {
           // Best route is actually clean!
           drawRoute(bestRoute.route, '#00ff00');
           setRiskWarning({
-            level: "✅ SAFE ROUTE", 
+            level: "SAFE ROUTE", 
             message: hasLocationZones 
               ? "Route avoids all danger zones, but your start or destination is inside a danger zone. Stay alert at these locations."
-              : "Route successfully avoids all danger zones. Safe travels!",
+              : "Route successfully avoids all danger zones. Safe travel!",
             color: "bg-green-100 text-green-800"
           });
         } else {
@@ -295,7 +337,7 @@ export default function LiveRouteMap({ end: propEnd }) {
           drawRoute(bestRoute.route, severityColor);
           const severityWarning = getSeverityWarningMessage(bestRoute.totalSeverity, bestRoute.maxSeverity, finalIntersections.length);
           setRiskWarning({
-            level: bestRoute.maxSeverity >= 4 ? "⚠️ HIGH RISK" : bestRoute.maxSeverity >= 3 ? "⚠️ MODERATE RISK" : "⚠️ LOW RISK",
+            level: bestRoute.maxSeverity >= 4 ? "HIGH RISK" : bestRoute.maxSeverity >= 3 ? "⚠️ MODERATE RISK" : "⚠️ LOW RISK",
             message: severityWarning,
             color: bestRoute.maxSeverity >= 4 ? "bg-red-100 text-red-800" : bestRoute.maxSeverity >= 3 ? "bg-orange-100 text-orange-800" : "bg-yellow-100 text-yellow-800"
           });
@@ -501,20 +543,20 @@ const calculateCentroid = (zones) => {
   const getSeverityWarningMessage = (totalSeverity, maxSeverity, zoneCount) => {
     // Handle case where route doesn't actually pass through zones
     if (maxSeverity === 0 || totalSeverity === 0) {
-      return "Route successfully avoids all danger zones. Safe travels!";
+      return "Route successfully avoids all danger zones. Safe travel!";
     }
     
     let warningLevel = "";
     let advice = "";
     
     if (maxSeverity >= 4) {
-      warningLevel = "⚠️ HIGH RISK";
-      advice = "Consider delaying travel or finding alternative transportation.";
+      warningLevel = "HIGH RISK";
+      advice = "Keep an eye on surroundings and report immediately if you feel unsafe.";
     } else if (maxSeverity >= 3) {
-      warningLevel = "⚠️ MODERATE RISK";
-      advice = "Exercise extreme caution and consider traveling with others.";
+      warningLevel = "MODERATE RISK";
+      advice = "Exercise extreme caution and consider travelling with others.";
     } else {
-      warningLevel = "⚠️ LOW RISK";
+      warningLevel = "LOW RISK";
       advice = "Stay alert and avoid stopping in marked areas.";
     }
     
@@ -549,6 +591,9 @@ const calculateCentroid = (zones) => {
       throw new Error("No route found");
     }
     
+    if (data.routes && data.routes[0] && data.routes[0].legs && data.routes[0].legs[0] && data.routes[0].legs[0].steps) {
+      setRouteSteps(data.routes[0].legs[0].steps);
+    }
     return data.routes[0];
   };
 
@@ -609,6 +654,9 @@ const calculateCentroid = (zones) => {
       throw new Error("No route found with waypoints");
     }
     
+    if (data.routes && data.routes[0] && data.routes[0].legs && data.routes[0].legs[0] && data.routes[0].legs[0].steps) {
+      setRouteSteps(data.routes[0].legs[0].steps);
+    }
     return data.routes[0];
   };
 
@@ -960,78 +1008,78 @@ const calculateCentroid = (zones) => {
     }
   };
 
-  const startPositionTracking = () => {
-    if (!navigator.geolocation) {
-      setLocationError("Geolocation is not supported by this browser");
-      return;
-    }
+  // const startPositionTracking = () => {
+  //   if (!navigator.geolocation) {
+  //     setLocationError("Geolocation is not supported by this browser");
+  //     return;
+  //   }
 
-    console.log("Starting position tracking...");
+  //   console.log("Starting position tracking...");
     
-    navigator.geolocation.getCurrentPosition(
-      handleNewPosition,
-      (error) => {
-        console.error("Initial geolocation error:", error);
-        setLocationError(getLocationErrorMessage(error));
-      },
-      { 
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0
-      }
-    );
+  //   navigator.geolocation.getCurrentPosition(
+  //     handleNewPosition,
+  //     (error) => {
+  //       console.error("Initial geolocation error:", error);
+  //       setLocationError(getLocationErrorMessage(error));
+  //     },
+  //     { 
+  //       enableHighAccuracy: true,
+  //       timeout: 10000,
+  //       maximumAge: 0
+  //     }
+  //   );
 
-    positionWatchId.current = navigator.geolocation.watchPosition(
-      handleNewPosition,
-      (error) => {
-        console.error("Geolocation watch error:", error);
-        setLocationError(getLocationErrorMessage(error));
-      },
-      {
-        enableHighAccuracy: true,
-        maximumAge: 1000,
-        timeout: 15000
-      }
-    );
-  };
+  //   positionWatchId.current = navigator.geolocation.watchPosition(
+  //     handleNewPosition,
+  //     (error) => {
+  //       console.error("Geolocation watch error:", error);
+  //       setLocationError(getLocationErrorMessage(error));
+  //     },
+  //     {
+  //       enableHighAccuracy: true,
+  //       maximumAge: 0, // Never use cached position
+  //       timeout: 5000  // Wait up to 5 seconds for a fix
+  //     }
+  //   );
+  // };
 
-  const handleNewPosition = (position) => {
-    const newPosition = [
-      position.coords.longitude,
-      position.coords.latitude
-    ];
+  // const handleNewPosition = (position) => {
+  //   const newPosition = [
+  //     position.coords.longitude,
+  //     position.coords.latitude
+  //   ];
     
-    console.log("New position:", newPosition);
+  //   console.log("New position:", newPosition);
     
-    // Update heading if available and navigating
-    if (isNavigating && position.coords.heading !== null && position.coords.heading !== undefined) {
-      setUserHeading(position.coords.heading);
-    }
+  //   // Update heading if available and navigating
+  //   if (isNavigating && position.coords.heading !== null && position.coords.heading !== undefined) {
+  //     setUserHeading(position.coords.heading);
+  //   }
     
-    setCurrentPosition(newPosition);
-    setLocationError(null);
+  //   setCurrentPosition(newPosition);
+  //   map.current.setCenter(newPosition);
+  //   setLocationError(null);
 
-    if (map.current && userMarker.current) {
-      // Always update marker and center map on first position
-      userMarker.current.setLngLat(newPosition).addTo(map.current);
-      if (!end) {
-        map.current.flyTo({
-          center: newPosition,
-          zoom: 14,
-          essential: true
-        });
-      }
-      // If navigating, always keep map centered on user  
-        map.current.easeTo({
-          center: newPosition,
-          zoom: 16,
-          essential: true,
-          duration: 1000
-        });
-        console.log("Eased to new position");
+  //   if (map.current) {
+  //     // Always update marker and center map on first position
+  //     if (!end) {
+  //       map.current.flyTo({
+  //         center: newPosition,
+  //         zoom: 14,
+  //         essential: true
+  //       });
+  //     }
+  //     // If navigating, always keep map centered on user  
+  //       map.current.easeTo({
+  //         center: newPosition,
+  //         zoom: 16,
+  //         essential: true,
+  //         duration: 1000
+  //       });
+  //       console.log("Eased to new position");
       
-    }
-  };
+  //   }
+  // };
 
   // 4. Add new helper functions:
   const createNavigationMarker = (position, heading) => {
@@ -1053,66 +1101,28 @@ const calculateCentroid = (zones) => {
   };
 
   const handleStartNavigation = () => {
-    setIsNavigating(true);
-    setShouldCalculateRoute(true); // This will trigger route calculation
-    // Request high accuracy positioning for navigation
-    if (positionWatchId.current) {
-      navigator.geolocation.clearWatch(positionWatchId.current);
-    }
-    positionWatchId.current = navigator.geolocation.watchPosition(
-      handleNewPosition,
-      (error) => {
-        console.error("Navigation geolocation error:", error);
-        setLocationError(getLocationErrorMessage(error));
-      },
-      {
-        enableHighAccuracy: true,
-        maximumAge: 500, // More frequent updates for navigation
-        timeout: 10000
-      }
-    );
-    // Center map on user immediately
-    if (map.current && currentPosition) {
-      map.current.flyTo({
-        center: currentPosition,
-        zoom: 16,
-        essential: true
-      });
+    if (geolocateControlRef.current) {
+      console.log("Triggering geolocation");
+      geolocateControlRef.current.trigger(); // Start tracking
+      setIsNavigating(true);
+      setShouldCalculateRoute(true);
     }
   };
-
-  // 4. MODIFY THE STOP NAVIGATION HANDLER (replace your existing handleStopNavigation function)
+   
   const handleStopNavigation = () => {
+    if (geolocateControlRef.current && geolocateControlRef.current._watchState === 'ACTIVE_LOCK') {
+      geolocateControlRef.current._onStopGeolocate();
+    }
     setIsNavigating(false);
-    setShouldCalculateRoute(false); // Stop route calculations
-    setRouteCalculated(false); // Reset route calculated state
-    setRiskWarning(null); // Clear any risk warnings
-    setUserHeading(0);
+    setShouldCalculateRoute(false);
     
-    // Clear the route from map
-    if (map.current && map.current.getSource('route')) {
+    // Clear route if exists
+    if (map.current.getSource('route')) {
       map.current.removeLayer('route');
+      map.current.removeSource('route');
       if (map.current.getLayer('route-outline')) {
         map.current.removeLayer('route-outline');
       }
-      map.current.removeSource('route');
-    }
-    
-    // Restart normal position tracking
-    if (positionWatchId.current) {
-      navigator.geolocation.clearWatch(positionWatchId.current);
-    }
-    
-    startPositionTracking();
-    
-    // Reset marker to normal green dot
-    if (map.current && userMarker.current && currentPosition) {
-      userMarker.current.remove();
-      userMarker.current = new mapboxgl.Marker({ 
-        color: '#00FF00',
-        className: 'user-marker'
-      });
-      userMarker.current.setLngLat(currentPosition).addTo(map.current);
     }
   };
 
@@ -1594,7 +1604,6 @@ const handleRecenter = () => {
   }
 };
 
-// Replace the return statement with this enhanced version
 // Replace the return statement with this responsive version
   return (
     <>
@@ -1608,7 +1617,20 @@ const handleRecenter = () => {
           margin: 0 !important;
           padding: 0 !important;
           overflow: hidden !important;
+          .mapboxgl-ctrl-geolocate {
+          width: 30px;
+          height: 30px;
+          margin: 10px;
+          border-radius: 4px;
+          background-color: #fff;
+          box-shadow: 0 0 0 2px rgba(0,0,0,0.1);
         }
+        .mapboxgl-user-location-dot {
+          width: 15px;
+          height: 15px;
+          background-color: #4285F4;
+        }
+      }
       `}</style>
       {/* Route calculation loading modal */}
       <Modal
@@ -1709,7 +1731,8 @@ const handleRecenter = () => {
         <Box sx={{ 
           display: 'grid',
           gridTemplateColumns: '1fr',
-          gap: 0.5
+          gap: 0.5,
+          zIndex: 5
         }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#3a86ff' }} />
@@ -1743,11 +1766,11 @@ const handleRecenter = () => {
           <Box>
             <Typography variant="subtitle2" sx={{ 
               fontWeight: 'bold',
-              fontSize: { xs: '0.8rem', sm: '0.9rem' }
+              fontSize: { xs: '1.1rem', sm: '0.9rem' }
             }}>
               {riskWarning.level}
             </Typography>
-            <Typography variant="body2" sx={{ fontSize: { xs: '0.7rem', sm: '0.8rem' } }}>
+            <Typography variant="body2" sx={{ fontSize: { xs: '0.8rem', sm: '0.8rem' } }}>
               {riskWarning.message}
             </Typography>
           </Box>
@@ -1771,7 +1794,7 @@ const handleRecenter = () => {
       `}</style>
 
       {/* Navigation Controls - Responsive */}
-      {mapLoaded && currentPosition && end && !locationError && (
+      {currentPosition && (
         <Box sx={{
           position: 'absolute',
           bottom: { xs: 8, sm: 20 },
@@ -1887,6 +1910,68 @@ const handleRecenter = () => {
           </Typography>
         </Box>
       )}
+      {routeSteps.length > 0 && (
+      <Box sx={{
+        position: 'absolute',
+        top: { xs: 8, sm: 10 },
+        left: '50%',
+        transform: 'translateX(-50%)',
+        zIndex: 100,
+        bgcolor: 'background.paper',
+        p: { xs: 0.6, sm: 2 },
+        borderRadius: 2,
+        boxShadow: 3,
+        minWidth: { xs: '25vw', sm: 220 },
+        maxWidth: { xs: '30vw', sm: 300 },
+        textAlign: 'center',
+        transition: 'all 0.3s ease',
+        border: '2px solid',
+        borderColor: 'primary.main',
+        display: { xs: 'flex', sm: 'none' }, // Only show on mobile
+        flexDirection: 'column',
+        alignItems: 'center'
+      }}>
+        <Box sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+          mb: { xs: 0.5, sm: 1 }
+        }}>
+          <DirectionsIcon 
+            color="primary" 
+            sx={{ 
+              fontSize: { xs: '1rem', sm: '1.25rem' } 
+            }} 
+          />
+        </Box>
+        <Typography 
+          variant="body1" 
+          sx={{ 
+            fontWeight: 500,
+            fontSize: { xs: '0.9rem', sm: '1rem' },
+            lineHeight: 1.2,
+            wordBreak: 'break-word'
+          }}
+        >
+          {routeSteps[0].maneuver.instruction}
+        </Typography>
+        {routeSteps[0].distance > 0 && (
+          <Typography 
+            variant="caption" 
+            color="text.secondary"
+            sx={{
+              display: 'block',
+              mt: { xs: 0.5, sm: 1 },
+              fontSize: { xs: '0.7rem', sm: '0.8rem' }
+            }}
+          >
+            {routeSteps[0].distance >= 1000 
+              ? `${(routeSteps[0].distance/1000).toFixed(1)} km` 
+              : `${Math.round(routeSteps[0].distance)} m`}
+          </Typography>
+        )}
+      </Box>
+    )}
     </Box>
     </>
   );

@@ -5,7 +5,7 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import axios from 'axios';
 import { TextField, Button, Typography, Box, Paper, Radio, RadioGroup, FormControlLabel, styled, InputAdornment, Alert,
-  useTheme } from '@mui/material';
+  useTheme, Grid } from '@mui/material';
 import FormControl from '@mui/material/FormControl';
 import DriveIcon from '@mui/icons-material/DirectionsCar';
 import WalkIcon from '@mui/icons-material/DirectionsWalk';
@@ -195,6 +195,20 @@ export default function SafeRouteMap({ end: propEnd }) {
       dangerZonesDrawnRef.current = true;
     }
   }, [mapLoaded, dangerZones]);
+
+  // Route calculation
+  useEffect(() => {
+    if (!mapLoaded || !currentPosition || !end) return;
+    const updateMap = async () => {
+      try {
+        await updateDestinationMarker(end);
+        await updateRouteWithAvoidance(currentPosition, end);
+      } catch (error) {
+        setLocationError("Failed to calculate route. Please try again.");
+      }
+    };
+    updateMap();
+  }, [mapLoaded, currentPosition, end, dangerZones]);
 
   useEffect(() => {
     if (propEnd) setEnd(propEnd);
@@ -1242,295 +1256,259 @@ const calculateCentroid = (zones) => {
   }));
 
   if (initializationPhase) {
-    return (
-      <Box sx={{
-        width: '100vw',
-          height: '100vh',
-          minHeight: '100vh',
-          minWidth: '100vw',
+  return (
+    <Box sx={{
+      width: '100vw',
+      height: '100vh',
+      position: 'relative',
+      overflow: 'hidden',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: 'linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)',
+      p: { xs: 2, sm: 3 }
+    }}>
+      <Paper 
+        elevation={0} 
+        sx={{ 
+          p: { xs: 3, md: 4 },
+          maxWidth: 500,
+          width: '100%',
+          borderRadius: 3,
+          background: 'white',
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
+          border: '1px solid rgba(0, 0, 0, 0.05)',
           position: 'relative',
-          overflow: 'hidden',
-          boxSizing: 'border-box',
-          pt: { xs: 2, sm: 5, md: 7, lg: 10 },
-          pb: { xs: 2, sm: 5, md: 7, lg: 10 },
-          px: { xs: 1.5, sm: 3, md: 4, lg: 6 },
-          background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)'
-      }}>
-        <Paper 
-          elevation={6} 
-          sx={{ 
-            p: { xs: 3, md: 4 },
-            maxWidth: 600,
-            width: '100%',
-            borderRadius: 3,
-            background: 'rgba(255, 255, 255, 0.95)',
-            backdropFilter: 'blur(8px)',
-            boxShadow: '0 8px 32px rgba(31, 38, 135, 0.15)',
-            border: '1px solid rgba(255, 255, 255, 0.18)',
-            overflow: 'hidden',
-            position: 'relative',
-            '&:before': {
-              content: '""',
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              height: 6,
-              background: 'linear-gradient(90deg, #3f51b5 0%, #2196f3 100%)'
-            }
-          }}
-        >
-          <Box sx={{ textAlign: 'center', mb: 4 }}>
+          '&:before': {
+            content: '""',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 6,
+            background: 'linear-gradient(90deg, #5e35b1 0%, #3949ab 100%)'
+          }
+        }}
+      >
+        <Box sx={{ textAlign: 'center', mb: 4 }}>
+          <Box sx={{
+            display: 'inline-flex',
+            p: 2,
+            borderRadius: '50%',
+            background: 'rgba(94, 53, 177, 0.1)',
+            mb: 2
+          }}>
             <LocationIcon 
               sx={{ 
-                fontSize: 60,
-                color: 'primary.main',
-                mb: 2,
-                background: 'rgba(63, 81, 181, 0.1)',
-                borderRadius: '50%',
-                p: 1.5
+                fontSize: 40,
+                color: 'primary.main'
               }} 
             />
-            <Typography 
-              variant="h4" 
-              gutterBottom 
-              sx={{ 
-                mb: 2,
-                fontWeight: 700,
-                color: 'text.primary',
-                background: 'linear-gradient(90deg, #3f51b5 0%, #2196f3 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent'
-              }}
-            >
-              Plan Your Safe Route
-            </Typography>
-            <Typography 
-              variant="subtitle1" 
-              sx={{ 
-                color: 'text.secondary',
-                maxWidth: 400,
-                mx: 'auto'
-              }}
-            >
-              Enter your destination and travel preferences to find the safest route
-            </Typography>
           </Box>
-  
-          <Box sx={{ mb: 4 }}>
-            <Typography 
-              variant="subtitle2" 
-              sx={{ 
-                mb: 1.5,
-                display: 'flex',
-                alignItems: 'center',
-                color: 'primary.main',
-                fontWeight: 600
-              }}
-            >
-              <Box 
-                sx={{
-                  width: 24,
-                  height: 24,
-                  borderRadius: '50%',
-                  background: 'primary.main',
-                  color: 'white',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  mr: 1.5,
-                  fontSize: 14
-                }}
-              >
-                1
-              </Box>
-              Enter Your Destination
-            </Typography>
-            <LoadScript
-              googleMapsApiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}
-              libraries={['places']}
-            >
-              <Autocomplete
-                onLoad={ac => (autocompleteRef.current = ac)}
-                onPlaceChanged={handlePlaceChanged}
-                options={{ componentRestrictions: { country: 'pk' } }}
-              >
-                <TextField
-                  fullWidth
-                  variant="outlined"
-                  placeholder="Search for destination..."
-                  inputRef={inputRef}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <LocationIcon color="primary" />
-                      </InputAdornment>
-                    ),
-                    sx: {
-                      '& .MuiOutlinedInput-notchedOutline': {
-                        borderColor: 'rgba(0, 0, 0, 0.1)'
-                      },
-                      '&:hover .MuiOutlinedInput-notchedOutline': {
-                        borderColor: 'primary.main'
-                      }
-                    }
-                  }}
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: 2,
-                      background: 'rgba(255, 255, 255, 0.8)'
-                    }
-                  }}
-                />
-              </Autocomplete>
-            </LoadScript>
-          </Box>
-  
-          <Box sx={{ mb: 4 }}>
-            <Typography 
-              variant="subtitle2" 
-              sx={{ 
-                mb: 1.5,
-                display: 'flex',
-                alignItems: 'center',
-                color: 'primary.main',
-                fontWeight: 600
-              }}
-            >
-              <Box 
-                sx={{
-                  width: 24,
-                  height: 24,
-                  borderRadius: '50%',
-                  background: 'primary.main',
-                  color: 'white',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  mr: 1.5,
-                  fontSize: 14
-                }}
-              >
-                2
-              </Box>
-              Select Travel Mode
-            </Typography>
-            <FormControl component="fieldset" sx={{ width: '100%' }}>
-              <RadioGroup
-                row
-                value={travelMode}
-                onChange={(e) => setTravelMode(e.target.value)}
-                sx={{ 
-                  justifyContent: 'space-between',
-                  gap: 2,
-                  '& .MuiFormControlLabel-root': {
-                    m: 0,
-                    flex: 1
-                  }
-                }}
-              >
-                <FormControlLabel
-                  value="driving"
-                  control={<Radio color="primary" />}
-                  label={
-                    <Paper
-                      elevation={travelMode === 'driving' ? 3 : 0}
-                      sx={{
-                        p: 2,
-                        borderRadius: 2,
-                        width: '100%',
-                        border: `2px solid ${travelMode === 'driving' ? theme.palette.primary.main : 'rgba(0, 0, 0, 0.1)'}`,
-                        transition: 'all 0.2s ease',
-                        '&:hover': {
-                          borderColor: travelMode === 'driving' ? theme.palette.primary.main : 'rgba(0, 0, 0, 0.2)'
-                        }
-                      }}
-                    >
-                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <DriveIcon color={travelMode === 'driving' ? 'primary' : 'action'} sx={{ mr: 1.5 }} />
-                        <Typography 
-                          sx={{ 
-                            fontWeight: travelMode === 'driving' ? 600 : 400,
-                            color: travelMode === 'driving' ? 'primary.main' : 'text.primary'
-                          }}
-                        >
-                          Driving
-                        </Typography>
-                      </Box>
-                    </Paper>
-                  }
-                  sx={{ flex: 1 }}
-                />
-                <FormControlLabel
-                  value="walking"
-                  control={<Radio color="primary" />}
-                  label={
-                    <Paper
-                      elevation={travelMode === 'walking' ? 3 : 0}
-                      sx={{
-                        p: 2,
-                        borderRadius: 2,
-                        width: '100%',
-                        border: `2px solid ${travelMode === 'walking' ? theme.palette.primary.main : 'rgba(0, 0, 0, 0.1)'}`,
-                        transition: 'all 0.2s ease',
-                        '&:hover': {
-                          borderColor: travelMode === 'walking' ? theme.palette.primary.main : 'rgba(0, 0, 0, 0.2)'
-                        }
-                      }}
-                    >
-                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <WalkIcon color={travelMode === 'walking' ? 'primary' : 'action'} sx={{ mr: 1.5 }} />
-                        <Typography 
-                          sx={{ 
-                            fontWeight: travelMode === 'walking' ? 600 : 400,
-                            color: travelMode === 'walking' ? 'primary.main' : 'text.primary'
-                          }}
-                        >
-                          Walking
-                        </Typography>
-                      </Box>
-                    </Paper>
-                  }
-                  sx={{ flex: 1 }}
-                />
-              </RadioGroup>
-            </FormControl>
-          </Box>
-  
-          {locationError && (
-            <Alert severity="error" sx={{ mb: 3 }}>
-              {locationError}
-            </Alert>
-          )}
-  
-          <Button
-            variant="contained"
-            size="large"
-            fullWidth
+          <Typography 
+            variant="h5" 
+            gutterBottom 
             sx={{ 
-              mt: 2,
-              py: 2,
-              borderRadius: 2,
-              fontWeight: 600,
-              fontSize: '1rem',
-              textTransform: 'none',
-              boxShadow: '0 4px 12px rgba(63, 81, 181, 0.2)',
-              '&:hover': {
-                boxShadow: '0 6px 16px rgba(63, 81, 181, 0.3)',
-                transform: 'translateY(-1px)'
-              },
-              transition: 'all 0.2s ease',
-              background: 'linear-gradient(90deg, #3f51b5 0%, #2196f3 100%)'
+              mb: 1,
+              fontWeight: 700,
+              color: 'text.primary'
             }}
-            onClick={handleInitializeMap}
-            disabled={!destination}
           >
-            Plan Safe Route
-          </Button>
-        </Paper>
-      </Box>
-    );
-  }
+            Plan Your Safe Route
+          </Typography>
+          <Typography 
+            variant="body2" 
+            sx={{ 
+              color: 'text.secondary',
+              maxWidth: 400,
+              mx: 'auto'
+            }}
+          >
+            Enter your destination to find the safest travel path
+          </Typography>
+        </Box>
+
+        <Box sx={{ mb: 3 }}>
+          <Typography 
+            variant="subtitle2" 
+            sx={{ 
+              mb: 1.5,
+              display: 'flex',
+              alignItems: 'center',
+              color: 'text.primary',
+              fontWeight: 600
+            }}
+          >
+            <Box 
+              sx={{
+                width: 24,
+                height: 24,
+                borderRadius: '50%',
+                background: 'primary.main',
+                color: 'white',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                mr: 1.5,
+                fontSize: 14,
+                fontWeight: 700
+              }}
+            >
+              1
+            </Box>
+            Destination
+          </Typography>
+          <LoadScript
+            googleMapsApiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}
+            libraries={['places']}
+          >
+            <Autocomplete
+              onLoad={ac => (autocompleteRef.current = ac)}
+              onPlaceChanged={handlePlaceChanged}
+              options={{ componentRestrictions: { country: 'pk' } }}
+            >
+              <TextField
+                fullWidth
+                variant="outlined"
+                placeholder="Where are you going?"
+                inputRef={inputRef}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <LocationIcon color="primary" />
+                    </InputAdornment>
+                  ),
+                  sx: {
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: 'rgba(0, 0, 0, 0.1)'
+                    },
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                      borderColor: 'primary.main'
+                    }
+                  }
+                }}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                    background: 'white'
+                  }
+                }}
+              />
+            </Autocomplete>
+          </LoadScript>
+        </Box>
+
+        <Box sx={{ mb: 4 }}>
+          <Typography 
+            variant="subtitle2" 
+            sx={{ 
+              mb: 1.5,
+              display: 'flex',
+              alignItems: 'center',
+              color: 'text.primary',
+              fontWeight: 600
+            }}
+          >
+            <Box 
+              sx={{
+                width: 24,
+                height: 24,
+                borderRadius: '50%',
+                background: 'primary.main',
+                color: 'white',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                mr: 1.5,
+                fontSize: 14,
+                fontWeight: 700
+              }}
+            >
+              2
+            </Box>
+            Travel Mode
+          </Typography>
+          <Grid container spacing={2}>
+            <Grid item xs={6}>
+              <Button
+                fullWidth
+                variant={travelMode === 'driving' ? 'contained' : 'outlined'}
+                startIcon={<DriveIcon />}
+                onClick={() => setTravelMode('driving')}
+                sx={{
+                  py: 1.5,
+                  borderRadius: 2,
+                  borderColor: travelMode === 'driving' ? 'primary.main' : 'grey.300',
+                  fontWeight: 600,
+                  color: travelMode === 'driving' ? 'white' : 'text.primary',
+                  bgcolor: travelMode === 'driving' ? 'primary.main' : 'transparent',
+                  '&:hover': {
+                    borderColor: 'primary.main',
+                    bgcolor: travelMode === 'driving' ? 'primary.dark' : 'rgba(94, 53, 177, 0.05)'
+                  }
+                }}
+              >
+                Drive
+              </Button>
+            </Grid>
+            <Grid item xs={6}>
+              <Button
+                fullWidth
+                variant={travelMode === 'walking' ? 'contained' : 'outlined'}
+                startIcon={<WalkIcon />}
+                onClick={() => setTravelMode('walking')}
+                sx={{
+                  py: 1.5,
+                  borderRadius: 2,
+                  borderColor: travelMode === 'walking' ? 'primary.main' : 'grey.300',
+                  fontWeight: 600,
+                  color: travelMode === 'walking' ? 'white' : 'text.primary',
+                  bgcolor: travelMode === 'walking' ? 'primary.main' : 'transparent',
+                  '&:hover': {
+                    borderColor: 'primary.main',
+                    bgcolor: travelMode === 'walking' ? 'primary.dark' : 'rgba(94, 53, 177, 0.05)'
+                  }
+                }}
+              >
+                Walk
+              </Button>
+            </Grid>
+          </Grid>
+        </Box>
+
+        {locationError && (
+          <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
+            {locationError}
+          </Alert>
+        )}
+
+        <Button
+          variant="contained"
+          size="large"
+          fullWidth
+          sx={{ 
+             mt: 'auto',
+            py: 1.5,
+            fontWeight: 600,
+            bgcolor: '#6A1B9A',
+            border: '2px solid #6A1B9A', // purple outline
+            color: 'white',
+            '&:hover': {
+              bgcolor: '#4A148C',
+              transform: 'translateY(-1px)',
+              borderColor: '#4A148C'
+            },
+            transition: 'all 0.2s ease'
+          }}
+          onClick={handleInitializeMap}
+          disabled={!destination}
+        >
+          Find Safe Route
+        </Button>
+      </Paper>
+    </Box>
+  );
+}
 
 const handleRecenter = () => {
   if (map.current && currentPosition) {

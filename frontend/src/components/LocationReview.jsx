@@ -58,7 +58,12 @@ const CrimeTypeChip = styled(Chip)(({ theme, crimeType }) => ({
   border: `1px solid ${crimeType === 'theft' ? '#FF6B6B' : 
                               crimeType === 'robbery' ? '#FF8E53' :
                               crimeType === 'harassment' ? '#4ECDC4' : '#45B7D1'}`,
-  fontWeight: 600
+  fontWeight: 600,
+  textAlign: 'center',
+  alignContent: 'center',
+  justifyContent: 'center',
+  alignItems: 'center',
+  height: '100%'
 }));
 
 export default function LocationReview() {
@@ -600,7 +605,17 @@ export default function LocationReview() {
                 disabled={loading}
                 startIcon={loading ? <CircularProgress size={20} /> : <RefreshIcon />}
                 fullWidth
-                sx={{ height: '40px' }}
+                sx={{
+                  mt: 'auto',
+                  bgcolor: '#6A1B9A',
+                  border: '2px solid #6A1B9A', // purple outline
+                  color: 'white',
+                  '&:hover': {
+                    bgcolor: '#4A148C',
+                    transform: 'translateY(-1px)',
+                    borderColor: '#4A148C' // optional: darker outline on hover
+                  },
+}}
               >
                 {loading ? 'Updating...' : 'Refresh Location'}
               </AnimatedButton>
@@ -700,7 +715,7 @@ export default function LocationReview() {
 
         {/* Crime Breakdown Card */}
         <Grid item xs={12} md={6}>
-          <Card sx={{ height: '100%', borderRadius: 2, boxShadow: theme.shadows[3] }}>
+          <Card sx={{ height: '100%', borderRadius: 2, boxShadow: theme.shadows[3], border: '1px solid #8b03a7ff' }}>
             <CardContent>
               <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
                 Crime Category Analysis
@@ -765,7 +780,7 @@ export default function LocationReview() {
       {/* Map Section */}
       <Card sx={{ mb: 3, borderRadius: 2, overflow: 'hidden', boxShadow: theme.shadows[3] }}>
         <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="h6" sx={{ fontWeight: 600 }}>
+          <Typography variant="h6" sx={{ fontWeight: 600, color: '#ee8803ff' }}>
             <MapIcon sx={{ verticalAlign: 'middle', mr: 1 }} />
             Crime Heatmap
           </Typography>
@@ -787,97 +802,6 @@ export default function LocationReview() {
             <CircularProgress sx={{ color: 'white' }} />
           </Box>
         )}
-      </Card>
-
-      {/* Legend Section */}
-      <Card sx={{ borderRadius: 2, boxShadow: theme.shadows[2] }}>
-        <CardContent sx={{ p: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-            <LegendIcon color="primary" />
-            <Typography variant="subtitle1">Map Legend</Typography>
-          </Box>
-          <Grid container spacing={1}>
-            <Grid item xs={6} sm={3}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Box sx={{ 
-                  width: 16, 
-                  height: 16, 
-                  borderRadius: '50%', 
-                  backgroundColor: '#FF6B6B',
-                  border: '1px solid white',
-                  boxShadow: '0 0 4px rgba(0,0,0,0.2)'
-                }} />
-                <Typography variant="body2">Theft</Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={6} sm={3}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Box sx={{ 
-                  width: 16, 
-                  height: 16, 
-                  borderRadius: '50%', 
-                  backgroundColor: '#FF8E53',
-                  border: '1px solid white',
-                  boxShadow: '0 0 4px rgba(0,0,0,0.2)'
-                }} />
-                <Typography variant="body2">Robbery</Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={6} sm={3}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Box sx={{ 
-                  width: 16, 
-                  height: 16, 
-                  borderRadius: '50%', 
-                  backgroundColor: '#4ECDC4',
-                  border: '1px solid white',
-                  boxShadow: '0 0 4px rgba(0,0,0,0.2)'
-                }} />
-                <Typography variant="body2">Harassment</Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={6} sm={3}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Box sx={{ 
-                  width: 16, 
-                  height: 16, 
-                  borderRadius: '50%', 
-                  backgroundColor: '#45B7D1',
-                  border: '1px solid white',
-                  boxShadow: '0 0 4px rgba(0,0,0,0.2)'
-                }} />
-                <Typography variant="body2">Other</Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={6} sm={3}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Box sx={{ 
-                  width: 16, 
-                  height: 16, 
-                  borderRadius: '50%', 
-                  backgroundColor: '#007aff',
-                  border: '1px solid white',
-                  boxShadow: '0 0 4px rgba(0,0,0,0.2)',
-                  animation: 'pulse 2s infinite'
-                }} />
-                <Typography variant="body2">Your Location</Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={6} sm={3}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Box sx={{ 
-                  width: 16, 
-                  height: 16, 
-                  borderRadius: '50%', 
-                  backgroundColor: '#FF5722',
-                  border: '1px solid white',
-                  boxShadow: '0 0 4px rgba(0,0,0,0.2)'
-                }} />
-                <Typography variant="body2">Crime Cluster</Typography>
-              </Box>
-            </Grid>
-          </Grid>
-        </CardContent>
       </Card>
     </Box>
   );

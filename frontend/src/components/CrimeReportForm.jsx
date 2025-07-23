@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   TextField,
   Button,
-  Select,
-  MenuItem,
   Slider,
   Typography,
   CircularProgress,
@@ -11,11 +9,10 @@ import {
   Card,
   CardContent,
   Grid,
-  Divider,
-  Chip,
   useTheme,
   styled,
-  InputAdornment
+  InputAdornment,
+  IconButton
 } from '@mui/material';
 import axios from 'axios';
 import { useAuth } from './AuthContext';
@@ -29,48 +26,42 @@ import {
   CheckCircle as SuccessIcon
 } from '@mui/icons-material';
 
-const AnimatedCard = styled(Card)(({ theme }) => ({
-  transition: 'all 0.3s ease',
+const CompactCard = styled(Card)(({ selected }) => ({
+  cursor: 'pointer',
+  border: `2px solid ${selected ? '#6A1B9A' : '#E0E0E0'}`,
+  backgroundColor: selected ? '#F3E5F5' : 'transparent',
+  transition: 'all 0.2s ease',
+  height: '100%',
   '&:hover': {
-    transform: 'translateY(-5px)',
-    boxShadow: theme.shadows[8]
+    borderColor: '#6A1B9A',
+    boxShadow: '0px 2px 6px rgba(0,0,0,0.1)'
   }
 }));
 
-const SeverityIndicator = styled(Box)(({ severity, theme }) => ({
-  width: 24,
-  height: 24,
+const SeverityIndicator = styled(Box)(({ severity }) => ({
+  width: 20,
+  height: 20,
   borderRadius: '50%',
   backgroundColor: 
-    severity === 1 ? '#4CAF50' :
-    severity === 2 ? '#8BC34A' :
-    severity === 3 ? '#FFC107' :
-    severity === 4 ? '#FF9800' : '#F44336',
+    severity === 1 ? '#E1BEE7' :
+    severity === 2 ? '#CE93D8' :
+    severity === 3 ? '#FFCC80' :
+    severity === 4 ? '#FFB74D' : '#F44336',
   border: '2px solid white',
-  boxShadow: theme.shadows[1],
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
   color: 'white',
   fontWeight: 'bold',
-  fontSize: '0.75rem'
+  fontSize: '0.7rem'
 }));
 
-const CrimeTypeCard = styled(Card)(({ selected, crimeType, theme }) => ({
-  cursor: 'pointer',
-  border: `2px solid ${selected ? 
-    (crimeType === 'theft' ? '#FF6B6B' : 
-     crimeType === 'robbery' ? '#FF8E53' : 
-     crimeType === 'harassment' ? '#4ECDC4' : '#45B7D1') : theme.palette.grey[300]}`,
-  backgroundColor: selected ? 
-    (crimeType === 'theft' ? '#FF6B6B10' : 
-     crimeType === 'robbery' ? '#FF8E5310' : 
-     crimeType === 'harassment' ? '#4ECDC410' : '#45B7D110') : 'transparent',
-  transition: 'all 0.2s ease',
-  '&:hover': {
-    transform: 'scale(1.02)'
-  }
-}));
+const crimeTypeColors = {
+  theft: '#CE93D8',
+  robbery: '#FFB74D',
+  harassment: '#9575CD',
+  other: '#A1887F'
+};
 
 export default function CrimeReportForm() {
   const theme = useTheme();
@@ -93,7 +84,7 @@ export default function CrimeReportForm() {
 
   const getLocation = () => {
     if (!navigator.geolocation) {
-      setLocationError('Geolocation is not supported by your browser');
+      setLocationError('Geolocation not supported');
       return;
     }
 
@@ -108,7 +99,7 @@ export default function CrimeReportForm() {
         setLocationError('');
       },
       (error) => {
-        setLocationError('Please enable location services to report a crime');
+        setLocationError('Enable location to report');
         setLoading(false);
       }
     );
@@ -137,22 +128,19 @@ export default function CrimeReportForm() {
       });
 
       setSuccess(true);
-      setTimeout(() => {
-        navigate('/home');
-      }, 2000);
-    
+      setTimeout(() => navigate('/home'), 1500);
     } catch (error) {
-      setSubmitError(error.response?.data?.message || 'Failed to submit report');
+      setSubmitError(error.response?.data?.message || 'Submission failed');
     } finally {
       setLoading(false);
     }
   };
 
   const crimeTypes = [
-    { value: 'theft', label: 'Theft', color: '#FF6B6B' },
-    { value: 'robbery', label: 'Robbery', color: '#FF8E53' },
-    { value: 'harassment', label: 'Harassment', color: '#4ECDC4' },
-    { value: 'other', label: 'Other', color: '#45B7D1' }
+    { value: 'theft', label: 'Theft' },
+    { value: 'robbery', label: 'Robbery' },
+    { value: 'harassment', label: 'Harassment' },
+    { value: 'other', label: 'Other' }
   ];
 
   if (success) {
@@ -162,222 +150,236 @@ export default function CrimeReportForm() {
         flexDirection: 'column', 
         alignItems: 'center', 
         justifyContent: 'center', 
-        minHeight: '60vh',
-        textAlign: 'center'
+        height: '70vh',
+        textAlign: 'center',
+        px: 2,
+        backgroundColor: '#F3E5F5'
       }}>
-        <SuccessIcon sx={{ fontSize: 80, color: '#4CAF50', mb: 2 }} />
-        <Typography variant="h4" gutterBottom sx={{ fontWeight: 700 }}>
-          Report Submitted Successfully!
+        <SuccessIcon sx={{ fontSize: 60, color: '#4CAF50', mb: 2 }} />
+        <Typography variant="h5" gutterBottom sx={{ fontWeight: 700 }}>
+          Report Submitted!
         </Typography>
-        <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-          Thank you for helping make your community safer.
+        <Typography variant="body1" color="text.secondary">
+          Thank you for making your community safer.
         </Typography>
-        <CircularProgress size={24} sx={{ color: '#4CAF50' }} />
       </Box>
     );
   }
 
   return (
-    <Box sx={{ maxWidth: 800, mx: 'auto', p: { xs: 2, md: 3 } }}>
-      <Button 
-        startIcon={<BackIcon />} 
-        onClick={() => navigate(-1)}
-        sx={{ mb: 2 }}
-      >
-        Back
-      </Button>
+    <Box sx={{ 
+      maxWidth: 600, 
+      mx: 'auto', 
+      p: 2,
+      height: '100vh',
+      display: 'flex',
+      flexDirection: 'column',
+      backgroundColor: '#ffffffff'
+    }}>
+      <Box sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+        <IconButton onClick={() => navigate(-1)} sx={{ mr: 1, color: '#f08800ff' }}>
+          <BackIcon />
+        </IconButton>
+        <Typography variant="h6" sx={{ fontWeight: 600, color: '#000000' }}>
+          Report Incident
+        </Typography>
+      </Box>
 
-      <AnimatedCard sx={{ borderRadius: 3, overflow: 'hidden' }}>
+      <Card sx={{ 
+        flex: 1,
+        borderRadius: 2,
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        boxShadow: 3
+      }}>
         <Box sx={{ 
-          backgroundColor: theme.palette.primary.main, 
-          p: 3,
-          color: 'white',
-          background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`
+          bgcolor: '#6A1B9A', 
+          p: 2,
+          color: 'white'
         }}>
-          <Typography variant="h4" sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 2 }}>
-            <ReportIcon fontSize="large" />
-            Report a Crime Incident
-          </Typography>
-          <Typography variant="body1" sx={{ mt: 1, opacity: 0.9 }}>
-            Help keep your community safe by reporting suspicious activities or crimes
+          <Typography variant="h6" sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <ReportIcon fontSize="small" />
+            Safety Report
           </Typography>
         </Box>
 
-        <CardContent sx={{ p: { xs: 2, md: 4 } }}>
+        <CardContent sx={{ 
+          p: 2, 
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          overflowY: 'auto'
+        }}>
           {loading && !location ? (
-            <Box textAlign="center" py={4}>
-              <CircularProgress size={60} thickness={4} />
-              <Typography variant="h6" sx={{ mt: 2 }}>
+            <Box sx={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              flex: 1
+            }}>
+              <CircularProgress size={40} />
+              <Typography variant="body1" sx={{ mt: 2 }}>
                 Getting your location...
               </Typography>
             </Box>
           ) : locationError ? (
-            <Box textAlign="center" py={4}>
-              <WarningIcon color="error" sx={{ fontSize: 60 }} />
-              <Typography variant="h6" color="error" sx={{ mt: 2 }}>
+            <Box sx={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              flex: 1,
+              textAlign: 'center'
+            }}>
+              <WarningIcon color="error" sx={{ fontSize: 40 }} />
+              <Typography color="error" sx={{ mt: 1, mb: 2 }}>
                 {locationError}
               </Typography>
               <Button 
                 variant="contained" 
-                onClick={getLocation} 
-                sx={{ mt: 3 }}
+                onClick={getLocation}
+                size="small"
                 startIcon={<RefreshIcon />}
               >
                 Try Again
               </Button>
             </Box>
           ) : (
-            <form onSubmit={handleSubmit}>
-              <Typography variant="h6" gutterBottom sx={{ mb: 3 }}>
-                1. Select Crime Type
-              </Typography>
-              
-              <Grid container spacing={2} sx={{ mb: 4 }}>
-                {crimeTypes.map((type) => (
-                  <Grid item xs={12} sm={6} key={type.value}>
-                    <CrimeTypeCard
-                      selected={formData.typeOfCrime === type.value}
-                      crimeType={type.value}
-                      onClick={() => setFormData({ ...formData, typeOfCrime: type.value })}
-                    >
-                      <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <Box sx={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: '50%',
-                          backgroundColor: `${type.color}20`,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
-                        }}>
-                          <Box sx={{
-                            width: 24,
-                            height: 24,
-                            borderRadius: '50%',
-                            backgroundColor: type.color
-                          }} />
-                        </Box>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                          {type.label}
-                        </Typography>
-                      </CardContent>
-                    </CrimeTypeCard>
-                  </Grid>
-                ))}
-              </Grid>
+            <form onSubmit={handleSubmit} style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600, mb: 1 }}>
+                  Incident Type
+                </Typography>
+                <Grid container spacing={1}>
+                  {crimeTypes.map((type) => (
+                    <Grid item xs={6} key={type.value}>
+                      <CompactCard
+                        selected={formData.typeOfCrime === type.value}
+                        onClick={() => setFormData({ ...formData, typeOfCrime: type.value })}
+                      >
+                        <CardContent sx={{ p: '12px !important' }}>
+                          <Box sx={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: 1 
+                          }}>
+                            <Box sx={{
+                              width: 16,
+                              height: 16,
+                              borderRadius: '50%',
+                              backgroundColor: crimeTypeColors[type.value]
+                            }} />
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                              {type.label}
+                            </Typography>
+                          </Box>
+                        </CardContent>
+                      </CompactCard>
+                    </Grid>
+                  ))}
+                </Grid>
+              </Box>
 
-              <Typography variant="h6" gutterBottom sx={{ mb: 3 }}>
-                2. Rate Severity
-              </Typography>
-              
-              <Box sx={{ 
-                backgroundColor: theme.palette.grey[100], 
-                p: 3, 
-                borderRadius: 2,
-                mb: 4
-              }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-                  <Typography variant="body1" sx={{ minWidth: 80 }}>
-                    Severity:
-                  </Typography>
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600, mb: 1 }}>
+                  Severity Level
+                </Typography>
+                <Box sx={{ 
+                  bgcolor: 'grey.100', 
+                  p: 2, 
+                  borderRadius: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1
+                }}>
                   <SeverityIndicator severity={formData.severity}>
                     {formData.severity}
                   </SeverityIndicator>
-                  <Typography variant="body1" sx={{ ml: 'auto', fontWeight: 600 }}>
+                  <Typography variant="body2" sx={{ flex: 1, ml: 1 }}>
                     {formData.severity === 1 ? 'Minor' :
                      formData.severity === 2 ? 'Low' :
                      formData.severity === 3 ? 'Moderate' :
                      formData.severity === 4 ? 'High' : 'Critical'}
                   </Typography>
                 </Box>
-                
                 <Slider
                   value={formData.severity}
                   onChange={(e, value) => setFormData({ ...formData, severity: value })}
                   min={1}
                   max={5}
                   step={1}
-                  marks={[
-                    { value: 1, label: '1' },
-                    { value: 2, label: '2' },
-                    { value: 3, label: '3' },
-                    { value: 4, label: '4' },
-                    { value: 5, label: '5' }
-                  ]}
-                  sx={{
-                    '& .MuiSlider-markLabel': {
-                      transform: 'translateY(20px)'
+                  sx={{ mt: 1 }}
+                />
+              </Box>
+
+              <Box sx={{ mb: 3, flex: 1 }}>
+                <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
+                  Details (Optional)
+                </Typography>
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={4}
+                  variant="outlined"
+                  placeholder="Describe what happened..."
+                  value={formData.comments}
+                  onChange={(e) => setFormData({ ...formData, comments: e.target.value })}
+                  inputProps={{ maxLength: 300 }}
+                  sx={{ 
+                    '& .MuiOutlinedInput-root': {
+                      fontSize: '0.875rem'
                     }
+                  }}
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <Typography variant="caption" color="text.secondary">
+                          {formData.comments.length}/300
+                        </Typography>
+                      </InputAdornment>
+                    )
                   }}
                 />
               </Box>
 
-              <Typography variant="h6" gutterBottom sx={{ mb: 3 }}>
-                3. Add Details
-              </Typography>
-              
-              <TextField
-                fullWidth
-                multiline
-                rows={5}
-                variant="outlined"
-                label="Describe the incident (Optional)"
-                placeholder="Provide details about what happened, when it occurred, descriptions of people involved, etc."
-                value={formData.comments}
-                onChange={(e) => setFormData({ ...formData, comments: e.target.value })}
-                inputProps={{ maxLength: 500 }}
-                sx={{ mb: 3 }}
-                InputProps={{
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <Typography variant="caption" color="text.secondary">
-                        {formData.comments.length}/500
-                      </Typography>
-                    </InputAdornment>
-                  )
-                }}
-              />
-
               {location && (
                 <Box sx={{ 
-                  backgroundColor: theme.palette.grey[100], 
-                  p: 2, 
+                  bgcolor: 'grey.100', 
+                  p: 1.5, 
                   borderRadius: 1,
                   display: 'flex',
                   alignItems: 'center',
                   gap: 1,
-                  mb: 3
+                  mb: 2
                 }}>
-                  <LocationIcon color="primary" />
-                  <Typography variant="body2">
-                    Your current location: 
-                    <Box component="span" sx={{ fontWeight: 600, ml: 1 }}>
-                      {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
-                    </Box>
+                  <LocationIcon color="primary" sx={{ fontSize: 20 }} />
+                  <Typography variant="caption">
+                    Location: {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
                   </Typography>
-                  <Button 
+                  <IconButton 
                     size="small" 
                     onClick={getLocation}
-                    startIcon={<RefreshIcon fontSize="small" />}
                     sx={{ ml: 'auto' }}
                   >
-                    Refresh
-                  </Button>
+                    <RefreshIcon fontSize="small" />
+                  </IconButton>
                 </Box>
               )}
 
               {submitError && (
                 <Box sx={{ 
-                  backgroundColor: theme.palette.error.light, 
-                  p: 2, 
+                  bgcolor: 'error.light', 
+                  p: 1.5, 
                   borderRadius: 1,
                   display: 'flex',
                   alignItems: 'center',
                   gap: 1,
-                  mb: 3
+                  mb: 2
                 }}>
-                  <WarningIcon color="error" />
-                  <Typography color="error">
+                  <WarningIcon color="error" sx={{ fontSize: 20 }} />
+                  <Typography variant="caption" color="error">
                     {submitError}
                   </Typography>
                 </Box>
@@ -387,36 +389,35 @@ export default function CrimeReportForm() {
                 type="submit"
                 fullWidth
                 variant="contained"
-                size="large"
                 disabled={loading || !location}
-                sx={{ 
-                  mt: 2,
-                  py: 2,
-                  fontSize: '1.1rem',
+                sx={{
+                  mt: 'auto',
+                  py: 1.5,
                   fontWeight: 600,
+                  bgcolor: 'white',
+                  color: '#6A1B9A',               // purple text
+                  border: '2px solid #6A1B9A',    // purple border
                   '&:hover': {
-                    transform: 'translateY(-2px)',
-                    boxShadow: theme.shadows[4]
-                  }
+                    bgcolor: '#F3E5F5',           // optional: light purple on hover
+                    borderColor: '#4A148C',       // darker purple border on hover
+                    color: '#4A148C',             // darker purple text on hover
+                    transform: 'translateY(-1px)'
+                  },
                 }}
               >
                 {loading ? (
                   <>
-                    <CircularProgress size={24} sx={{ mr: 2 }} />
-                    Submitting Report...
+                    <CircularProgress size={20} sx={{ mr: 1 }} />
+                    Submitting...
                   </>
                 ) : (
-                  'Submit Crime Report'
+                  'Submit Report'
                 )}
               </Button>
-
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
-                By submitting this report, you agree that the information provided is accurate to the best of your knowledge.
-              </Typography>
             </form>
           )}
         </CardContent>
-      </AnimatedCard>
+      </Card>
     </Box>
   );
 }

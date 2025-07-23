@@ -30,6 +30,9 @@ export default function SafeRouteMap({ end: propEnd }) {
   const destinationMarker = useRef(null);
   const geolocateControlRef = useRef();
 
+  // Add a ref to store the geolocation watch ID
+  const positionWatchId = useRef(null);
+
   const [initializationPhase, setInitializationPhase] = useState(true);
   const [travelMode, setTravelMode] = useState('driving');
   const [destination, setDestination] = useState(propEnd || null);
@@ -42,16 +45,13 @@ export default function SafeRouteMap({ end: propEnd }) {
   const [riskWarning, setRiskWarning] = useState(null);
   const [isNavigating, setIsNavigating] = useState(false);
   const [routeCalculated, setRouteCalculated] = useState(false);
-  const [userHeading, setUserHeading] = useState(0);
   const [shouldCalculateRoute, setShouldCalculateRoute] = useState(false);
-  const [routeData, setRouteData] = useState(null);
   const [remainingDistance, setRemainingDistance] = useState(null);
-  const [currentRouteColor, setCurrentRouteColor] = useState('blue');
   const [warningOpen, setWarningOpen] = useState(true);
-  const [isMapCentered, setIsMapCentered] = useState(true);
   const recenterButtonRef = useRef(null);
   const [hasArrived, setHasArrived] = useState(false);
   const [routeSteps, setRouteSteps] = useState([]);
+  const dangerZonesDrawnRef = useRef(false);
   
   // Map initialization
   const handleInitializeMap = () => {
@@ -64,17 +64,6 @@ export default function SafeRouteMap({ end: propEnd }) {
       initializeMap();
     }, 100);
   };
-
-  // useEffect(() => {
-  //   if (map.current && currentPosition) {
-  //     map.current.flyTo({
-  //       center: currentPosition,
-  //       zoom: 14,
-  //       essential: true
-  //     });
-  //   }
-  // }, [currentPosition, mapLoaded]);
-
 
   // Draw current location and destination markers as soon as both are available and map is loaded
   useEffect(() => {
@@ -94,16 +83,71 @@ export default function SafeRouteMap({ end: propEnd }) {
     if (!currentPosition) return;
     const fetchDangerZones = async () => {
       try {
-        // setLoading(true); // REMOVE this line, loading is now set on map load
-        const response = await axios.get('http://localhost:5000/report/all-reports', {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('authToken')}`,
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-          },
-          withCredentials: true
-        });
-        const zones = response.data.map((report, index) => ({
+        // const response = await axios.get('http://localhost:5000/report/all-reports', {
+        //   headers: {
+        //     Authorization: `Bearer ${localStorage.getItem('authToken')}`,
+        //     'Accept': 'application/json',
+        //     'Content-Type': 'application/json'
+        //   },
+        //   withCredentials: true
+        // });
+        const response=[
+    {
+        "location": {
+            "type": "Point",
+            "coordinates": [
+                74.26,
+                31.390014
+            ]
+        },
+        "votes": {
+            "upvotes": [],
+            "downvotes": [],
+            "score": 0
+        },
+        "_id": "687a61eed4f0cdeb1eab8bb4",
+        "user": {
+            "_id": "6876ba94936e42ef917f665a",
+            "firstName": "Abdur",
+            "lastName": "Rehman",
+            "email": "abdurrehman@gmail.com"
+        },
+        "userId": 1,
+        "typeOfCrime": "harassment",
+        "severity": 5,
+        "comments": "neww!",
+        "reportedAt": "2025-07-18T15:02:06.033Z",
+        "__v": 0
+    },
+    {
+        "location": {
+            "type": "Point",
+            "coordinates": [
+                74.244,
+                31.3909
+            ]
+        },
+        "votes": {
+            "upvotes": [],
+            "downvotes": [],
+            "score": 0
+        },
+        "_id": "687b98f08a6ebc4d1eed50d5",
+        "user": {
+            "_id": "6876ba94936e42ef917f665a",
+            "firstName": "Abdur",
+            "lastName": "Rehman",
+            "email": "abdurrehman@gmail.com"
+        },
+        "userId": 1,
+        "typeOfCrime": "robbery",
+        "severity": 3,
+        "comments": "my loc",
+        "reportedAt": "2025-07-19T13:09:04.530Z",
+        "__v": 0
+    }
+];
+        const zones = response.map((report, index) => ({
           id: report._id || `zone-${index}`,
           lat: report.location.coordinates[1],
           lng: report.location.coordinates[0],
@@ -124,8 +168,6 @@ export default function SafeRouteMap({ end: propEnd }) {
         setDangerZones(zones);
       } catch (err) {
         setLocationError('Failed to load danger zone data');
-      } finally {
-        // setLoading(false); // REMOVE this line, loading will be set after drawing zones
       }
     };
     fetchDangerZones();
@@ -133,9 +175,10 @@ export default function SafeRouteMap({ end: propEnd }) {
 
   // Draw danger zones
   useEffect(() => {
-    if (mapLoaded && dangerZones.length > 0) {
+    if (mapLoaded && dangerZones.length > 0 && !dangerZonesDrawnRef.current) {
       drawAllDangerZones();
-      setLoading(false); // Set loading to false after drawing all danger zones
+      setLoading(false); 
+      dangerZonesDrawnRef.current = true;
     }
   }, [mapLoaded, dangerZones]);
 
@@ -166,12 +209,12 @@ export default function SafeRouteMap({ end: propEnd }) {
       return;
     }
 
-    setLoading(true); // Optional: show loading spinner
+    setLoading(true); 
 
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const userCoords = [pos.coords.longitude, pos.coords.latitude];
-        setCurrentPosition(userCoords); // Set for later use
+        setCurrentPosition(userCoords);
 
         map.current = new mapboxgl.Map({
           container: mapContainer.current,
@@ -204,8 +247,6 @@ export default function SafeRouteMap({ end: propEnd }) {
             position.coords.latitude
           ];
           setCurrentPosition(newPosition);
-          setUserHeading(position.coords.heading || 0);
-          map.current.setCenter(newPosition);
         });
 
         geolocateControlRef.current.on('error', (error) => {
@@ -215,10 +256,8 @@ export default function SafeRouteMap({ end: propEnd }) {
         // Automatically trigger geolocation on initialization
         map.current.on('load', () => {
           setMapLoaded(true);
-          setTimeout(() => {
-            geolocateControlRef.current.trigger();
-            if (destination) updateDestinationMarker(destination);
-          }, 2000);
+          geolocateControlRef.current.trigger();
+          if (destination) updateDestinationMarker(destination);       
         });
 
         setLoading(false); 
@@ -227,34 +266,17 @@ export default function SafeRouteMap({ end: propEnd }) {
         setLocationError("Please turn on your location and allow access to use this feature.");
         setLoading(false);
       },
-      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 1000 }
     );
   };
 
   useEffect(() => {
     if (mapLoaded && map.current) {
       if (geolocateControlRef.current) {
-        setTimeout(() => geolocateControlRef.current.trigger(), 1000);
+        geolocateControlRef.current.trigger();
       }
     }
   }, [mapLoaded]);
-
-  // Fallback: If currentPosition is still null after map load, use browser geolocation
-  useEffect(() => {
-    if (!currentPosition && mapLoaded && window.navigator.geolocation) {
-      window.navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          console.log('Browser geolocation fallback:', pos);
-          setCurrentPosition([pos.coords.longitude, pos.coords.latitude]);
-          setUserHeading(pos.coords.heading || 0);
-        },
-        (err) => {
-          setLocationError(getLocationErrorMessage(err));
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-      );
-    }
-  }, [currentPosition, mapLoaded]);
 
   // Route calculation logic
   const updateRouteWithAvoidance = async (startPos, endPos) => {
@@ -682,7 +704,7 @@ const calculateCentroid = (zones) => {
   const clearDangerZones = () => {
     if (!map.current) return;
     
-    // Remove all existing danger zone layers and sources
+    // Remove all existing danger zone layers and sources, but NEVER remove user location layers/sources
     const layers = map.current.getStyle().layers || [];
     layers.forEach(layer => {
       if (layer.id.startsWith('danger-zone-')) {
@@ -694,6 +716,7 @@ const calculateCentroid = (zones) => {
           map.current.removeSource(sourceId);
         }
       }
+      // Do NOT remove any layer/source with 'user-location' or 'mapbox-user-location' in the id
     });
   };
 
@@ -1008,79 +1031,6 @@ const calculateCentroid = (zones) => {
     }
   };
 
-  // const startPositionTracking = () => {
-  //   if (!navigator.geolocation) {
-  //     setLocationError("Geolocation is not supported by this browser");
-  //     return;
-  //   }
-
-  //   console.log("Starting position tracking...");
-    
-  //   navigator.geolocation.getCurrentPosition(
-  //     handleNewPosition,
-  //     (error) => {
-  //       console.error("Initial geolocation error:", error);
-  //       setLocationError(getLocationErrorMessage(error));
-  //     },
-  //     { 
-  //       enableHighAccuracy: true,
-  //       timeout: 10000,
-  //       maximumAge: 0
-  //     }
-  //   );
-
-  //   positionWatchId.current = navigator.geolocation.watchPosition(
-  //     handleNewPosition,
-  //     (error) => {
-  //       console.error("Geolocation watch error:", error);
-  //       setLocationError(getLocationErrorMessage(error));
-  //     },
-  //     {
-  //       enableHighAccuracy: true,
-  //       maximumAge: 0, // Never use cached position
-  //       timeout: 5000  // Wait up to 5 seconds for a fix
-  //     }
-  //   );
-  // };
-
-  // const handleNewPosition = (position) => {
-  //   const newPosition = [
-  //     position.coords.longitude,
-  //     position.coords.latitude
-  //   ];
-    
-  //   console.log("New position:", newPosition);
-    
-  //   // Update heading if available and navigating
-  //   if (isNavigating && position.coords.heading !== null && position.coords.heading !== undefined) {
-  //     setUserHeading(position.coords.heading);
-  //   }
-    
-  //   setCurrentPosition(newPosition);
-  //   map.current.setCenter(newPosition);
-  //   setLocationError(null);
-
-  //   if (map.current) {
-  //     // Always update marker and center map on first position
-  //     if (!end) {
-  //       map.current.flyTo({
-  //         center: newPosition,
-  //         zoom: 14,
-  //         essential: true
-  //       });
-  //     }
-  //     // If navigating, always keep map centered on user  
-  //       map.current.easeTo({
-  //         center: newPosition,
-  //         zoom: 16,
-  //         essential: true,
-  //         duration: 1000
-  //       });
-  //       console.log("Eased to new position");
-      
-  //   }
-  // };
-
   // 4. Add new helper functions:
   const createNavigationMarker = (position, heading) => {
     const el = document.createElement('div');
@@ -1107,15 +1057,35 @@ const calculateCentroid = (zones) => {
       setIsNavigating(true);
       setShouldCalculateRoute(true);
     }
+    // Start browser geolocation watch for real-time updates
+    if (navigator.geolocation && !positionWatchId.current) {
+      positionWatchId.current = navigator.geolocation.watchPosition(
+        (position) => {
+          const newPosition = [position.coords.longitude, position.coords.latitude];
+          setCurrentPosition(newPosition);
+          map.current.setCenter(newPosition);
+        },
+        (error) => {
+          setLocationError(getLocationErrorMessage(error));
+        },
+        {
+          enableHighAccuracy: true,
+          maximumAge: 100,
+          timeout: 10000
+        }
+      );
+    }
   };
    
   const handleStopNavigation = () => {
-    if (geolocateControlRef.current && geolocateControlRef.current._watchState === 'ACTIVE_LOCK') {
-      geolocateControlRef.current._onStopGeolocate();
-    }
+    // Only stop route logic, do not stop user location tracking or remove the GeolocateControl
     setIsNavigating(false);
     setShouldCalculateRoute(false);
-    
+    // Stop browser geolocation watch
+    if (positionWatchId.current !== null) {
+      navigator.geolocation.clearWatch(positionWatchId.current);
+      positionWatchId.current = null;
+    }
     // Clear route if exists
     if (map.current.getSource('route')) {
       map.current.removeLayer('route');
@@ -1260,13 +1230,17 @@ const calculateCentroid = (zones) => {
   if (initializationPhase) {
     return (
       <Box sx={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: '100vh',
-        p: 3,
-        background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)'
+        width: '100vw',
+          height: '100vh',
+          minHeight: '100vh',
+          minWidth: '100vw',
+          position: 'relative',
+          overflow: 'hidden',
+          boxSizing: 'border-box',
+          pt: { xs: 2, sm: 5, md: 7, lg: 10 },
+          pb: { xs: 2, sm: 5, md: 7, lg: 10 },
+          px: { xs: 1.5, sm: 3, md: 4, lg: 6 },
+          background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)'
       }}>
         <Paper 
           elevation={6} 
@@ -1544,55 +1518,6 @@ const calculateCentroid = (zones) => {
     );
   }
 
-  // Add these styled components
-const RouteInfoCard = styled(Paper)(({ theme }) => ({
-  position: 'absolute',
-  top: theme.spacing(2),
-  left: theme.spacing(2),
-  zIndex: 10,
-  padding: theme.spacing(2),
-  borderRadius: '12px',
-  boxShadow: theme.shadows[5],
-  backgroundColor: theme.palette.background.paper + 'cc',
-  backdropFilter: 'blur(4px)',
-  minWidth: '200px'
-}));
-
-const RouteLegend = styled(Box)(({ theme }) => ({
-  position: 'absolute',
-  top: theme.spacing(2),
-  right: theme.spacing(2),
-  zIndex: 10,
-  padding: theme.spacing(2),
-  borderRadius: '12px',
-  // boxShadow: theme.shadows[5],
-  backgroundColor: theme.palette.background.paper + 'cc',
-  backdropFilter: 'blur(4px)'
-}));
-
-const WarningAlert = styled(Paper)(({ severity, theme }) => ({
-  position: 'absolute',
-  top: theme.spacing(2),
-  left: '50%',
-  transform: 'translateX(-50%)',
-  zIndex: 10,
-  padding: theme.spacing(2),
-  borderRadius: '12px',
-  // boxShadow: theme.shadows[5],
-  maxWidth: '90%',
-  backgroundColor: 
-    severity === 'high' ? theme.palette.error.light :
-    severity === 'medium' ? theme.palette.warning.light :
-    theme.palette.success.light,
-  color: 
-    severity === 'high' ? theme.palette.error.contrastText :
-    severity === 'medium' ? theme.palette.warning.contrastText :
-    theme.palette.success.contrastText,
-  display: 'flex',
-  alignItems: 'center',
-  gap: theme.spacing(1)
-}));
-
 const handleRecenter = () => {
   if (map.current && currentPosition) {
     map.current.flyTo({
@@ -1600,379 +1525,391 @@ const handleRecenter = () => {
       zoom: 16,
       essential: true
     });
-    setIsMapCentered(true);
   }
 };
 
 // Replace the return statement with this responsive version
-  return (
-    <>
-      {/* Prevent scrollbars on the whole app */}
-      <style>{`
-        html, body, #root {
-          width: 100vw !important;
-          height: 100vh !important;
-          min-width: 100vw !important;
-          min-height: 100vh !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          overflow: hidden !important;
-          .mapboxgl-ctrl-geolocate {
-          width: 30px;
-          height: 30px;
-          margin: 10px;
-          border-radius: 4px;
-          background-color: #fff;
-          box-shadow: 0 0 0 2px rgba(0,0,0,0.1);
-        }
-        .mapboxgl-user-location-dot {
-          width: 15px;
-          height: 15px;
-          background-color: #4285F4;
-        }
-      }
-      `}</style>
-      {/* Route calculation loading modal */}
-      <Modal
-        open={shouldCalculateRoute && !routeCalculated}
-        aria-labelledby="route-loading-title"
-        aria-describedby="route-loading-desc"
-        sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}
-      >
-        <Box sx={{
-          bgcolor: 'background.paper',
-          borderRadius: 2,
-          boxShadow: 6,
-          p: 4,
-          minWidth: 260,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: 2
-        }}>
-          <CircularProgress color="primary" size={36} thickness={4} />
-          <Box id="route-loading-title" sx={{ fontWeight: 600, fontSize: '1.1rem', mt: 1, mb: 0.5 }}>
-            Finding the safest route for you...
-          </Box>
-        </Box>
-      </Modal>
-      {/* Arrival popup */}
-      <Modal
-        open={hasArrived}
-        aria-labelledby="arrival-title"
-        aria-describedby="arrival-desc"
-        sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}
-      >
-        <Box sx={{
-          bgcolor: 'background.paper',
-          borderRadius: 2,
-          boxShadow: 6,
-          p: 4,
-          minWidth: 260,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: 2
-        }}>
-          <CheckCircleOutlineIcon color="success" sx={{ fontSize: 48, mb: 1 }} />
-          <Box id="arrival-title" sx={{ fontWeight: 700, fontSize: '1.2rem', mb: 1 }}>
-            Congrats on reaching your destination safely!
-          </Box>
-        </Box>
-      </Modal>
-      <Box sx={{ width: '100vw', height: '100vh', minHeight: '100vh', minWidth: '100vw', position: 'relative', overflow: 'hidden' }}>
-      {/* Map Container */}
-      <Box
-        ref={mapContainer}
-        sx={{ 
-          width: '100vw',
-          height: '100vh',
-          minHeight: '100vh',
-          minWidth: '100vw',
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          zIndex: 1
-        }}
-      />
+  // ...existing code...
 
-      {/* Route Information Card - Responsive */}
-      {remainingDistance !== null && (
-        <ResponsiveRouteInfoCard data-overlay="distance">
-          <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' }, fontSize: { xs: '0.7rem', sm: '0.9rem' } }}>
-            Remaining Distance
+// Replace the main return statement with this version:
+return (
+  <>
+    {/* Prevent scrollbars on the whole app */}
+    <style>{`
+      html, body, #root {
+        width: 100vw !important;
+        height: 100vh !important;
+        min-width: 100vw !important;
+        min-height: 100vh !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+      }
+    `}</style>
+    {/* Main container with responsive gap */}
+    <Box
+      sx={{
+        width: '100vw',
+        height: '100vh',
+        minHeight: '100vh',
+        minWidth: '100vw',
+        position: 'relative',
+        overflow: 'hidden',
+        boxSizing: 'border-box',
+        pt: { xs: 2, sm: 5, md: 7, lg: 10 }, // More gap at top
+        pb: { xs: 6, sm: 5, md: 7, lg: 10 }, // More gap at bottom
+        px: { xs: 1.5, sm: 3, md: 4, lg: 6 }, // Keep side gap
+        background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)'
+      }}
+    >
+      {/* Inner content box with all overlays and map */}
+      <Box
+        sx={{
+          width: '100%',
+          height: '100%',
+          borderRadius: { xs: 2, sm: 3, md: 4 },
+          boxShadow: 6,
+          overflow: 'hidden',
+          position: 'relative',
+          background: 'rgba(255,255,255,0.97)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        {/* Map Container */}
+        <Box
+          ref={mapContainer}
+          sx={{
+            width: '100%',
+            height: '100%',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            zIndex: 1,
+          }}
+        />
+
+        {/* Route Information Card */}
+        {remainingDistance !== null && (
+          <ResponsiveRouteInfoCard data-overlay="distance">
+            <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' }, fontSize: { xs: '0.7rem', sm: '0.9rem' } }}>
+              Remaining Distance
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'block', sm: 'none' }, fontSize: '0.7rem' }}>
+              Distance
+            </Typography>
+            <Typography
+              variant="h6"
+              sx={{
+                fontWeight: 'bold',
+                fontSize: { xs: '1rem', sm: '1.5rem' },
+                lineHeight: 1.1
+              }}
+            >
+              {remainingDistance >= 1000
+                ? `${(remainingDistance / 1000).toFixed(2)} km`
+                : `${Math.round(remainingDistance)} m`}
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: '0.6rem', sm: '0.8rem' } }}>
+              {travelMode === 'walking' ? 'Walking' : 'Driving'} route
+            </Typography>
+          </ResponsiveRouteInfoCard>
+        )}
+
+        {/* Route Legend */}
+        <ResponsiveRouteLegend data-overlay="legend">
+          <Typography variant="caption" gutterBottom sx={{ display: { xs: 'none', sm: 'block' }, fontSize: { xs: '0.7rem', sm: '0.9rem' } }}>
+            Route Safety
           </Typography>
-          <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'block', sm: 'none' }, fontSize: '0.7rem' }}>
-            Distance
-          </Typography>
-          <Typography 
-            variant="h6" 
-            sx={{ 
-              fontWeight: 'bold',
-              fontSize: { xs: '1rem', sm: '1.5rem' },
-              lineHeight: 1.1
+          <Box sx={{
+            display: 'grid',
+            gridTemplateColumns: '1fr',
+            gap: 0.5,
+            zIndex: 5
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#3a86ff' }} />
+              <Typography variant="caption" sx={{ fontSize: { xs: '0.65rem', sm: '0.8rem' }, fontWeight: 'bold' }}>Normal</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#00ff00' }} />
+              <Typography variant="caption" sx={{ fontSize: { xs: '0.65rem', sm: '0.8rem' }, fontWeight: 'bold' }}>Safe</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#ff6600' }} />
+              <Typography variant="caption" sx={{ fontSize: { xs: '0.65rem', sm: '0.8rem' }, fontWeight: 'bold' }}>Low Risk</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#ff0000' }} />
+              <Typography variant="caption" sx={{ fontSize: { xs: '0.65rem', sm: '0.8rem' }, fontWeight: 'bold' }}>High Risk</Typography>
+            </Box>
+          </Box>
+        </ResponsiveRouteLegend>
+
+        {/* Warning Alert */}
+        {riskWarning && warningOpen && (
+          <ResponsiveWarningAlert
+            severity={
+              riskWarning.level.includes('HIGH') ? 'high' :
+                riskWarning.level.includes('MODERATE') ? 'medium' : 'low'
+            }
+          >
+            {riskWarning.level.includes('HIGH') ? <ErrorIcon fontSize="small" /> :
+              riskWarning.level.includes('MODERATE') ? <WarningIcon fontSize="small" /> : <CheckCircleIcon fontSize="small" />}
+            <Box>
+              <Typography variant="subtitle2" sx={{
+                fontWeight: 'bold',
+                fontSize: { xs: '1.1rem', sm: '0.9rem' }
+              }}>
+                {riskWarning.level}
+              </Typography>
+              <Typography variant="body2" sx={{ fontSize: { xs: '0.8rem', sm: '0.8rem' } }}>
+                {riskWarning.message}
+              </Typography>
+            </Box>
+            <Box sx={{ display: { xs: 'flex', sm: 'none' }, ml: 'auto' }}>
+              <CloseIcon
+                fontSize="small"
+                sx={{ cursor: 'pointer' }}
+                onClick={() => setWarningOpen(false)}
+              />
+            </Box>
+          </ResponsiveWarningAlert>
+        )}
+
+        {/* Navigation Controls */}
+        {currentPosition && (
+          <Box sx={{
+            position: 'absolute',
+            bottom: { xs: 16, sm: 32 },
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 10,
+            width: { xs: '96%', sm: 'auto' },
+            maxWidth: { xs: '98%', sm: '400px' },
+            px: { xs: 0, sm: 0 }
+          }}>
+            {!isNavigating ? (
+              <Button
+                variant="contained"
+                color="primary"
+                size="large"
+                startIcon={<LocationIcon fontSize={window.innerWidth < 600 ? "small" : "medium"} />}
+                onClick={handleStartNavigation}
+                sx={{
+                  borderRadius: '24px',
+                  boxShadow: 3,
+                  px: { xs: 1, sm: 4 },
+                  py: { xs: 0.5, sm: 1.5 },
+                  fontWeight: 'bold',
+                  width: '100%',
+                  fontSize: { xs: '0.9rem', sm: '1rem' },
+                  minHeight: { xs: '36px', sm: '48px' }
+                }}
+                fullWidth
+              >
+                <Typography sx={{ fontSize: { xs: '0.8rem', sm: '1rem' } }}>
+                  Start Navigation
+                </Typography>
+              </Button>
+            ) : (
+              <Button
+                variant="contained"
+                color="error"
+                size="large"
+                startIcon={<WarningIcon fontSize={window.innerWidth < 600 ? "small" : "medium"} />}
+                onClick={handleStopNavigation}
+                sx={{
+                  borderRadius: '24px',
+                  boxShadow: 3,
+                  px: { xs: 1, sm: 4 },
+                  py: { xs: 0.5, sm: 1.5 },
+                  fontWeight: 'bold',
+                  width: '100%',
+                  fontSize: { xs: '0.9rem', sm: '1rem' },
+                  minHeight: { xs: '36px', sm: '48px' }
+                }}
+                fullWidth
+              >
+                <Typography sx={{ fontSize: { xs: '0.8rem', sm: '1rem' } }}>
+                  Stop Navigation
+                </Typography>
+              </Button>
+            )}
+          </Box>
+        )}
+
+        {/* Recenter button during navigation */}
+        {isNavigating && (
+          <Box
+            ref={recenterButtonRef}
+            sx={{
+              position: 'absolute',
+              bottom: { xs: 80, sm: 100 },
+              right: { xs: 16, sm: 32 },
+              zIndex: 20
             }}
           >
-            {remainingDistance >= 1000 
-              ? `${(remainingDistance/1000).toFixed(2)} km` 
-              : `${Math.round(remainingDistance)} m`}
-          </Typography>
-          <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: '0.6rem', sm: '0.8rem' } }}>
-            {travelMode === 'walking' ? 'Walking' : 'Driving'} route
-          </Typography>
-        </ResponsiveRouteInfoCard>
-      )}
-
-      {/* Route Legend - Responsive */}
-      <ResponsiveRouteLegend data-overlay="legend">
-        <Typography variant="caption" gutterBottom sx={{ display: { xs: 'none', sm: 'block' }, fontSize: { xs: '0.7rem', sm: '0.9rem' } }}>
-          Route Safety
-        </Typography>
-        <Box sx={{ 
-          display: 'grid',
-          gridTemplateColumns: '1fr',
-          gap: 0.5,
-          zIndex: 5
-        }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#3a86ff' }} />
-            <Typography variant="caption" sx={{ fontSize: { xs: '0.65rem', sm: '0.8rem' }, fontWeight: 'bold' }}>Normal</Typography>
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#00ff00' }} />
-            <Typography variant="caption" sx={{ fontSize: { xs: '0.65rem', sm: '0.8rem' }, fontWeight: 'bold' }}>Safe</Typography>
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#ff6600' }} />
-            <Typography variant="caption" sx={{ fontSize: { xs: '0.65rem', sm: '0.8rem' }, fontWeight: 'bold' }}>Low Risk</Typography>
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#ff0000' }} />
-            <Typography variant="caption" sx={{ fontSize: { xs: '0.65rem', sm: '0.8rem' }, fontWeight: 'bold' }}>High Risk</Typography>
-          </Box>
-        </Box>
-      </ResponsiveRouteLegend>
-
-      {/* Warning Alert - Responsive */}
-      {riskWarning && warningOpen && (
-        <ResponsiveWarningAlert 
-          severity={
-            riskWarning.level.includes('HIGH') ? 'high' : 
-            riskWarning.level.includes('MODERATE') ? 'medium' : 'low'
-          }
-        >
-          {riskWarning.level.includes('HIGH') ? <ErrorIcon fontSize="small" /> :
-          riskWarning.level.includes('MODERATE') ? <WarningIcon fontSize="small" /> : <CheckCircleIcon fontSize="small" />}
-          <Box>
-            <Typography variant="subtitle2" sx={{ 
-              fontWeight: 'bold',
-              fontSize: { xs: '1.1rem', sm: '0.9rem' }
-            }}>
-              {riskWarning.level}
-            </Typography>
-            <Typography variant="body2" sx={{ fontSize: { xs: '0.8rem', sm: '0.8rem' } }}>
-              {riskWarning.message}
-            </Typography>
-          </Box>
-          <Box sx={{ display: { xs: 'flex', sm: 'none' }, ml: 'auto' }}>
-            <CloseIcon 
-              fontSize="small" 
-              sx={{ cursor: 'pointer' }} 
-              onClick={() => setWarningOpen(false)} 
-            />
-          </Box>
-        </ResponsiveWarningAlert>
-      )}
-
-      {/* Add margin to overlays so they don't overlap with warning box on mobile */}
-      <style>{`
-        @media (max-width: 600px) {
-          .MuiPaper-root[data-overlay="legend"] {
-            margin-top: 38px !important;
-          }
-        }
-      `}</style>
-
-      {/* Navigation Controls - Responsive */}
-      {currentPosition && (
-        <Box sx={{
-          position: 'absolute',
-          bottom: { xs: 8, sm: 20 },
-          left: '50%',
-          transform: 'translateX(-50%)',
-          zIndex: 10,
-          width: { xs: '96vw', sm: 'auto' },
-          maxWidth: { xs: '98vw', sm: '400px' },
-          px: { xs: 0, sm: 0 }
-        }}>
-          {!isNavigating ? (
             <Button
               variant="contained"
               color="primary"
-              size="large"
-              startIcon={<LocationIcon fontSize={window.innerWidth < 600 ? "small" : "medium"} />}
-              onClick={handleStartNavigation}
+              size="medium"
+              onClick={handleRecenter}
               sx={{
-                borderRadius: '24px',
+                borderRadius: '50%',
+                minWidth: 0,
+                width: 48,
+                height: 48,
+                p: 0,
                 boxShadow: 3,
-                px: { xs: 1, sm: 4 },
-                py: { xs: 0.5, sm: 1.5 },
-                fontWeight: 'bold',
-                width: '100%',
-                fontSize: { xs: '0.9rem', sm: '1rem' },
-                minHeight: { xs: '36px', sm: '48px' }
+                backgroundColor: theme.palette.primary.main,
+                '&:hover': {
+                  backgroundColor: theme.palette.primary.dark
+                }
               }}
-              fullWidth
             >
-              <Typography sx={{ fontSize: { xs: '0.8rem', sm: '1rem' } }}>
-                Start Navigation
-              </Typography>
+              <LocationIcon sx={{ color: 'white' }} />
             </Button>
-          ) : (
-            <Button
-              variant="contained"
-              color="error"
-              size="large"
-              startIcon={<WarningIcon fontSize={window.innerWidth < 600 ? "small" : "medium"} />}
-              onClick={handleStopNavigation}
-              sx={{
-                borderRadius: '24px',
-                boxShadow: 3,
-                px: { xs: 1, sm: 4 },
-                py: { xs: 0.5, sm: 1.5 },
-                fontWeight: 'bold',
-                width: '100%',
-                fontSize: { xs: '0.9rem', sm: '1rem' },
-                minHeight: { xs: '36px', sm: '48px' }
-              }}
-              fullWidth
-            >
-              <Typography sx={{ fontSize: { xs: '0.8rem', sm: '1rem' } }}>
-                Stop Navigation
-              </Typography>
-            </Button>
-          )}
-        </Box>
-      )}
-      {/* Recenter button during navigation */}
-      {isNavigating && (
-      <Box
-        ref={recenterButtonRef}
-        sx={{
-          position: 'absolute',
-          bottom: { xs: 80, sm: 100 },
-          right: { xs: 16, sm: 32 },
-          zIndex: 20
-        }}
-      >
-        <Button
-          variant="contained"
-          color="primary"
-          size="medium"
-          onClick={handleRecenter}
-          sx={{
-            borderRadius: '50%',
-            minWidth: 0,
-            width: 48,
-            height: 48,
-            p: 0,
-            boxShadow: 3,
-            backgroundColor: theme.palette.primary.main,
-            '&:hover': {
-              backgroundColor: theme.palette.primary.dark
-            }
-          }}
-        >
-          <LocationIcon sx={{ color: 'white' }} />
-        </Button>
-      </Box>
-    )}
+          </Box>
+        )}
 
-      {/* Loading Danger Zones Overlay - Responsive */}
-      {loading && (
-        <Box sx={{
-          position: 'absolute',
-          top: { xs: 8, sm: 20 },
-          left: '50%',
-          transform: 'translateX(-50%)',
-          bgcolor: 'background.paper',
-          p: { xs: 1, sm: 1.5 },
-          borderRadius: 1,
-          boxShadow: 3,
-          display: 'flex',
-          alignItems: 'center',
-          zIndex: 20,
-          minWidth: { xs: '120px', sm: '180px' }
-        }}>
-          <CircularProgress size={18} sx={{ mr: 1 }} />
-          <Typography variant="body2" sx={{ fontSize: { xs: '0.7rem', sm: '0.9rem' } }}>
-            Loading danger zones...
-          </Typography>
-        </Box>
-      )}
-      {routeSteps.length > 0 && (
-      <Box sx={{
-        position: 'absolute',
-        top: { xs: 8, sm: 10 },
-        left: '50%',
-        transform: 'translateX(-50%)',
-        zIndex: 100,
-        bgcolor: 'background.paper',
-        p: { xs: 0.6, sm: 2 },
-        borderRadius: 2,
-        boxShadow: 3,
-        minWidth: { xs: '25vw', sm: 220 },
-        maxWidth: { xs: '30vw', sm: 300 },
-        textAlign: 'center',
-        transition: 'all 0.3s ease',
-        border: '2px solid',
-        borderColor: 'primary.main',
-        display: { xs: 'flex', sm: 'none' }, // Only show on mobile
-        flexDirection: 'column',
-        alignItems: 'center'
-      }}>
-        <Box sx={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 1,
-          mb: { xs: 0.5, sm: 1 }
-        }}>
-          <DirectionsIcon 
-            color="primary" 
-            sx={{ 
-              fontSize: { xs: '1rem', sm: '1.25rem' } 
-            }} 
-          />
-        </Box>
-        <Typography 
-          variant="body1" 
-          sx={{ 
-            fontWeight: 500,
-            fontSize: { xs: '0.9rem', sm: '1rem' },
-            lineHeight: 1.2,
-            wordBreak: 'break-word'
-          }}
-        >
-          {routeSteps[0].maneuver.instruction}
-        </Typography>
-        {routeSteps[0].distance > 0 && (
-          <Typography 
-            variant="caption" 
-            color="text.secondary"
-            sx={{
-              display: 'block',
-              mt: { xs: 0.5, sm: 1 },
-              fontSize: { xs: '0.7rem', sm: '0.8rem' }
-            }}
-          >
-            {routeSteps[0].distance >= 1000 
-              ? `${(routeSteps[0].distance/1000).toFixed(1)} km` 
-              : `${Math.round(routeSteps[0].distance)} m`}
-          </Typography>
+        {/* Loading Danger Zones Overlay */}
+        {loading && (
+          <Box sx={{
+            position: 'absolute',
+            top: { xs: 8, sm: 20 },
+            left: '50%',
+            transform: 'translateX(-50%)',
+            bgcolor: 'background.paper',
+            p: { xs: 1, sm: 1.5 },
+            borderRadius: 1,
+            boxShadow: 3,
+            display: 'flex',
+            alignItems: 'center',
+            zIndex: 20,
+            minWidth: { xs: '120px', sm: '180px' }
+          }}>
+            <CircularProgress size={18} sx={{ mr: 1 }} />
+            <Typography variant="body2" sx={{ fontSize: { xs: '0.7rem', sm: '0.9rem' } }}>
+              Loading danger zones...
+            </Typography>
+          </Box>
+        )}
+
+        {/* Route Steps (mobile only) */}
+        {routeSteps.length > 0 && (
+          <Box sx={{
+            position: 'absolute',
+            top: { xs: 8, sm: 10 },
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 100,
+            bgcolor: 'background.paper',
+            p: { xs: 0.6, sm: 2 },
+            borderRadius: 2,
+            boxShadow: 3,
+            minWidth: { xs: '25vw', sm: 220 },
+            maxWidth: { xs: '30vw', sm: 300 },
+            textAlign: 'center',
+            transition: 'all 0.3s ease',
+            border: '2px solid',
+            borderColor: 'primary.main',
+            display: { xs: 'flex', sm: 'none' },
+            flexDirection: 'column',
+            alignItems: 'center'
+          }}>
+            <Box sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              mb: { xs: 0.5, sm: 1 }
+            }}>
+              <DirectionsIcon
+                color="primary"
+                sx={{
+                  fontSize: { xs: '1rem', sm: '1.25rem' }
+                }}
+              />
+            </Box>
+            <Typography
+              variant="body1"
+              sx={{
+                fontWeight: 500,
+                fontSize: { xs: '0.9rem', sm: '1rem' },
+                lineHeight: 1.2,
+                wordBreak: 'break-word'
+              }}
+            >
+              {routeSteps[0].maneuver.instruction}
+            </Typography>
+            {routeSteps[0].distance > 0 && (
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{
+                  display: 'block',
+                  mt: { xs: 0.5, sm: 1 },
+                  fontSize: { xs: '0.7rem', sm: '0.8rem' }
+                }}
+              >
+                {routeSteps[0].distance >= 1000
+                  ? `${(routeSteps[0].distance / 1000).toFixed(1)} km`
+                  : `${Math.round(routeSteps[0].distance)} m`}
+              </Typography>
+            )}
+          </Box>
         )}
       </Box>
-    )}
     </Box>
-    </>
-  );
+    {/* Modals remain outside the main box for full-screen overlays */}
+    <Modal
+      open={shouldCalculateRoute && !routeCalculated}
+      aria-labelledby="route-loading-title"
+      aria-describedby="route-loading-desc"
+      sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}
+    >
+      <Box sx={{
+        bgcolor: 'background.paper',
+        borderRadius: 2,
+        boxShadow: 6,
+        p: 4,
+        minWidth: 260,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 2
+      }}>
+        <CircularProgress color="primary" size={36} thickness={4} />
+        <Box id="route-loading-title" sx={{ fontWeight: 600, fontSize: '1.1rem', mt: 1, mb: 0.5 }}>
+          Finding the safest route for you...
+        </Box>
+      </Box>
+    </Modal>
+    <Modal
+      open={hasArrived}
+      aria-labelledby="arrival-title"
+      aria-describedby="arrival-desc"
+      sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}
+    >
+      <Box sx={{
+        bgcolor: 'background.paper',
+        borderRadius: 2,
+        boxShadow: 6,
+        p: 4,
+        minWidth: 260,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 2
+      }}>
+        <CheckCircleOutlineIcon color="success" sx={{ fontSize: 48, mb: 1 }} />
+        <Box id="arrival-title" sx={{ fontWeight: 700, fontSize: '1.2rem', mb: 1 }}>
+          Congrats on reaching your destination safely!
+        </Box>
+      </Box>
+    </Modal>
+  </>
+);
+// ...existing code...
 }

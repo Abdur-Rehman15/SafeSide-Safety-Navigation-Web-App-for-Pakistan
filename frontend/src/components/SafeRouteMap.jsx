@@ -173,6 +173,20 @@ export default function SafeRouteMap({ end: propEnd }) {
     fetchDangerZones();
   }, [currentPosition]);
 
+  useEffect(() => {
+    if (riskWarning) {
+      setWarningOpen(true);
+    }
+  }, [riskWarning]);
+
+  useEffect(() => {
+    if (!isNavigating || !currentPosition) return;
+    if (shouldCalculateRoute) {
+      setRouteCalculated(false);
+      updateRouteWithAvoidance(currentPosition, end);
+    }
+  }, [currentPosition, isNavigating, end, shouldCalculateRoute]);
+
   // Draw danger zones
   useEffect(() => {
     if (mapLoaded && dangerZones.length > 0 && !dangerZonesDrawnRef.current) {
@@ -181,20 +195,6 @@ export default function SafeRouteMap({ end: propEnd }) {
       dangerZonesDrawnRef.current = true;
     }
   }, [mapLoaded, dangerZones]);
-
-  // Route calculation
-  useEffect(() => {
-    if (!mapLoaded || !currentPosition || !end || !shouldCalculateRoute) return;
-    const updateMap = async () => {
-      try {
-        await updateDestinationMarker(end);
-        await updateRouteWithAvoidance(currentPosition, end);
-      } catch (error) {
-        setLocationError("Failed to calculate route. Please try again.");
-      }
-    };
-    updateMap();
-  }, [mapLoaded, currentPosition, end, dangerZones, shouldCalculateRoute]);
 
   useEffect(() => {
     if (propEnd) setEnd(propEnd);
@@ -286,6 +286,8 @@ export default function SafeRouteMap({ end: propEnd }) {
       const directRoute = await getDirectRoute(startPos, endPos);
       if (dangerZones.length === 0) {
         drawRoute(directRoute, '#3a86ff');
+        setRouteCalculated(true);
+        setShouldCalculateRoute(false);
         return;
       }
       // Exclude start/destination zones
@@ -303,10 +305,10 @@ export default function SafeRouteMap({ end: propEnd }) {
           color: "bg-yellow-100 text-yellow-800"
         } : null);
         setRouteCalculated(true);
+        setShouldCalculateRoute(false);
         return;
       }
 
-      // Try avoidance route
       // Try avoidance route
       const avoidanceRoute = await calculateRobustAvoidanceRoute(startPos, endPos, intersectingZones);
       if (avoidanceRoute) {
@@ -322,6 +324,9 @@ export default function SafeRouteMap({ end: propEnd }) {
               : "Route successfully avoids all danger zones. Safe travel!",
             color: "bg-green-100 text-green-800"
           });
+          setRouteCalculated(true);
+          setShouldCalculateRoute(false);
+          return;
         } else {
           // This is supposed to be an avoidance route but still intersects - shouldn't happen
           // Fall through to find best route instead of using this one
@@ -330,6 +335,7 @@ export default function SafeRouteMap({ end: propEnd }) {
         
         if (avoidanceIntersections.length === 0) {
           setRouteCalculated(true);
+          setShouldCalculateRoute(false);
           return;
         }
       }
@@ -352,6 +358,9 @@ export default function SafeRouteMap({ end: propEnd }) {
               : "Route successfully avoids all danger zones. Safe travel!",
             color: "bg-green-100 text-green-800"
           });
+          setRouteCalculated(true);
+          setShouldCalculateRoute(false);
+          return;
         } else {
           // Route does pass through danger zones - use severity-based coloring
           const severityColor = bestRoute.maxSeverity >= 4 ? '#ff0000' :
@@ -363,13 +372,20 @@ export default function SafeRouteMap({ end: propEnd }) {
             message: severityWarning,
             color: bestRoute.maxSeverity >= 4 ? "bg-red-100 text-red-800" : bestRoute.maxSeverity >= 3 ? "bg-orange-100 text-orange-800" : "bg-yellow-100 text-yellow-800"
           });
+          setRouteCalculated(true);
+          setShouldCalculateRoute(false);
+          return;
         }
-        setRouteCalculated(true);
       } else {
         setLocationError("No route found through danger zones.");
+        setShouldCalculateRoute(false);
+        setRouteCalculated(true);
+        return;
       }
     } catch (error) {
       setLocationError("Failed to calculate route. Please check your connection and try again.");
+      setShouldCalculateRoute(false);
+      setRouteCalculated(true);
     }
   };
   // NEW: Find the best route considering severity of danger zones
@@ -1056,6 +1072,7 @@ const calculateCentroid = (zones) => {
       geolocateControlRef.current.trigger(); // Start tracking
       setIsNavigating(true);
       setShouldCalculateRoute(true);
+      setRouteCalculated(false);
     }
     // Start browser geolocation watch for real-time updates
     if (navigator.geolocation && !positionWatchId.current) {
@@ -1079,10 +1096,7 @@ const calculateCentroid = (zones) => {
    
   const handleStopNavigation = () => {
     // Only stop route logic, do not stop user location tracking or remove the GeolocateControl
-    setIsNavigating(false);
-    setShouldCalculateRoute(false);
-    // Stop browser geolocation watch
-    if (positionWatchId.current !== null) {
+    setIsNavigating(false);  if (positionWatchId.current !== null) {
       navigator.geolocation.clearWatch(positionWatchId.current);
       positionWatchId.current = null;
     }
@@ -1862,30 +1876,6 @@ return (
         )}
       </Box>
     </Box>
-    {/* Modals remain outside the main box for full-screen overlays */}
-    <Modal
-      open={shouldCalculateRoute && !routeCalculated}
-      aria-labelledby="route-loading-title"
-      aria-describedby="route-loading-desc"
-      sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}
-    >
-      <Box sx={{
-        bgcolor: 'background.paper',
-        borderRadius: 2,
-        boxShadow: 6,
-        p: 4,
-        minWidth: 260,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: 2
-      }}>
-        <CircularProgress color="primary" size={36} thickness={4} />
-        <Box id="route-loading-title" sx={{ fontWeight: 600, fontSize: '1.1rem', mt: 1, mb: 0.5 }}>
-          Finding the safest route for you...
-        </Box>
-      </Box>
-    </Modal>
     <Modal
       open={hasArrived}
       aria-labelledby="arrival-title"
@@ -1906,6 +1896,29 @@ return (
         <CheckCircleOutlineIcon color="success" sx={{ fontSize: 48, mb: 1 }} />
         <Box id="arrival-title" sx={{ fontWeight: 700, fontSize: '1.2rem', mb: 1 }}>
           Congrats on reaching your destination safely!
+        </Box>
+      </Box>
+    </Modal>
+    <Modal
+      open={shouldCalculateRoute && !routeCalculated}
+      aria-labelledby="route-loading-title"
+      aria-describedby="route-loading-desc"
+      sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}
+    >
+      <Box sx={{
+        bgcolor: 'background.paper',
+        borderRadius: 2,
+        boxShadow: 6,
+        p: 4,
+        minWidth: 260,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 2
+      }}>
+        <CircularProgress color="primary" size={36} thickness={4} />
+        <Box id="route-loading-title" sx={{ fontWeight: 600, fontSize: '1.1rem', mt: 1, mb: 0.5 }}>
+          Finding the safest route for you...
         </Box>
       </Box>
     </Modal>

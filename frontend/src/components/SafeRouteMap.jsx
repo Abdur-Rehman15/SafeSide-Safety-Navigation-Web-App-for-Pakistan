@@ -44,14 +44,21 @@ export default function SafeRouteMap({ end: propEnd }) {
   const [end, setEnd] = useState(propEnd || null);
   const [riskWarning, setRiskWarning] = useState(null);
   const [isNavigating, setIsNavigating] = useState(false);
-  const [routeCalculated, setRouteCalculated] = useState(false);
   const [shouldCalculateRoute, setShouldCalculateRoute] = useState(false);
+  const [openOnce, setOpenOnce] = useState(false);
   const [remainingDistance, setRemainingDistance] = useState(null);
   const [warningOpen, setWarningOpen] = useState(true);
   const recenterButtonRef = useRef(null);
   const [hasArrived, setHasArrived] = useState(false);
   const [routeSteps, setRouteSteps] = useState([]);
   const dangerZonesDrawnRef = useRef(false);
+  const currentRouteRef = useRef(null);
+  const lastCalculatedPositionRef = useRef(null);
+  const [userProgressIndex, setUserProgressIndex] = useState(0); //temporary
+  const routeCoordinatesRef = useRef([]); //temporary
+  const lastUserPositionRef = useRef(null); //temporary
+
+  const deviationThreshold = 40; // meters
   
   // Map initialization
   const handleInitializeMap = () => {
@@ -91,62 +98,64 @@ export default function SafeRouteMap({ end: propEnd }) {
         //   },
         //   withCredentials: true
         // });
+
         const response=[
-    {
-        "location": {
-            "type": "Point",
-            "coordinates": [
-                74.26,
-                31.390014
-            ]
-        },
-        "votes": {
-            "upvotes": [],
-            "downvotes": [],
-            "score": 0
-        },
-        "_id": "687a61eed4f0cdeb1eab8bb4",
-        "user": {
-            "_id": "6876ba94936e42ef917f665a",
-            "firstName": "Abdur",
-            "lastName": "Rehman",
-            "email": "abdurrehman@gmail.com"
-        },
-        "userId": 1,
-        "typeOfCrime": "harassment",
-        "severity": 5,
-        "comments": "neww!",
-        "reportedAt": "2025-07-18T15:02:06.033Z",
-        "__v": 0
-    },
-    {
-        "location": {
-            "type": "Point",
-            "coordinates": [
-                74.244,
-                31.3909
-            ]
-        },
-        "votes": {
-            "upvotes": [],
-            "downvotes": [],
-            "score": 0
-        },
-        "_id": "687b98f08a6ebc4d1eed50d5",
-        "user": {
-            "_id": "6876ba94936e42ef917f665a",
-            "firstName": "Abdur",
-            "lastName": "Rehman",
-            "email": "abdurrehman@gmail.com"
-        },
-        "userId": 1,
-        "typeOfCrime": "robbery",
-        "severity": 3,
-        "comments": "my loc",
-        "reportedAt": "2025-07-19T13:09:04.530Z",
-        "__v": 0
-    }
-];
+          {
+              "location": {
+                  "type": "Point",
+                  "coordinates": [
+                      74.26,
+                      31.390014
+                  ]
+              },
+              "votes": {
+                  "upvotes": [],
+                  "downvotes": [],
+                  "score": 0
+              },
+              "_id": "687a61eed4f0cdeb1eab8bb4",
+              "user": {
+                  "_id": "6876ba94936e42ef917f665a",
+                  "firstName": "Abdur",
+                  "lastName": "Rehman",
+                  "email": "abdurrehman@gmail.com"
+              },
+              "userId": 1,
+              "typeOfCrime": "harassment",
+              "severity": 5,
+              "comments": "neww!",
+              "reportedAt": "2025-07-18T15:02:06.033Z",
+              "__v": 0
+          },
+          {
+              "location": {
+                  "type": "Point",
+                  "coordinates": [
+                      74.244,
+                      31.3909
+                  ]
+              },
+              "votes": {
+                  "upvotes": [],
+                  "downvotes": [],
+                  "score": 0
+              },
+              "_id": "687b98f08a6ebc4d1eed50d5",
+              "user": {
+                  "_id": "6876ba94936e42ef917f665a",
+                  "firstName": "Abdur",
+                  "lastName": "Rehman",
+                  "email": "abdurrehman@gmail.com"
+              },
+              "userId": 1,
+              "typeOfCrime": "robbery",
+              "severity": 3,
+              "comments": "my loc",
+              "reportedAt": "2025-07-19T13:09:04.530Z",
+              "__v": 0
+          }
+        ];
+
         const zones = response.map((report, index) => ({
           id: report._id || `zone-${index}`,
           lat: report.location.coordinates[1],
@@ -180,10 +189,36 @@ export default function SafeRouteMap({ end: propEnd }) {
   }, [riskWarning]);
 
   useEffect(() => {
+    if (!isNavigating || !currentPosition || !mapLoaded) return;
+
+    // Only calculate if:
+    // 1. We don't have a route yet, OR
+    // 2. User has deviated from current route, OR
+    // 3. It's the first calculation after starting navigation
+    const shouldRecalculate = (
+      !currentRouteRef.current ||
+      hasDeviatedFromRoute(currentPosition) ||
+      !lastCalculatedPositionRef.current
+    );
+
+    if (shouldRecalculate) {
+      setShouldCalculateRoute(true);
+      lastCalculatedPositionRef.current = currentPosition;
+    }
+  }, [currentPosition, isNavigating, mapLoaded]);
+
+  useEffect(() => {
     if (!isNavigating || !currentPosition) return;
     if (shouldCalculateRoute) {
-      setRouteCalculated(false);
-      updateRouteWithAvoidance(currentPosition, end);
+      const calculateAndDraw = async () => {
+        const route = await updateRouteWithAvoidance(currentPosition, end);
+        if (route) {
+          currentRouteRef.current = route;
+        }
+        setOpenOnce(false); // Hide popup after first calculation
+        setShouldCalculateRoute(false);
+      };
+      calculateAndDraw();
     }
   }, [currentPosition, isNavigating, end, shouldCalculateRoute]);
 
@@ -196,23 +231,53 @@ export default function SafeRouteMap({ end: propEnd }) {
     }
   }, [mapLoaded, dangerZones]);
 
-  // Route calculation
-  useEffect(() => {
-    if (!mapLoaded || !currentPosition || !end) return;
-    const updateMap = async () => {
-      try {
-        await updateDestinationMarker(end);
-        await updateRouteWithAvoidance(currentPosition, end);
-      } catch (error) {
-        setLocationError("Failed to calculate route. Please try again.");
-      }
-    };
-    updateMap();
-  }, [mapLoaded, currentPosition, end, dangerZones]);
-
   useEffect(() => {
     if (propEnd) setEnd(propEnd);
   }, [propEnd]);
+
+  useEffect(() => { //temporary
+    if (!isNavigating || !currentPosition || !map.current || !map.current.getSource('route')) return;
+
+    // Find closest point on route to current position
+    const closestIndex = findClosestRoutePointIndex(currentPosition, routeCoordinatesRef.current); //temporary
+    // Only update if user has progressed significantly
+    // if (closestIndex > userProgressIndex + 5 || closestIndex === routeCoordinatesRef.current.length - 1) { //prevtemporary
+    if (closestIndex > userProgressIndex /*|| closestIndex === routeCoordinatesRef.current.length - 1*/) { //temporary
+      setUserProgressIndex(closestIndex); //temporary
+      console.log('DRAWING TRIMMED ROUTE....'); //temporary
+      // Update route geometry to only show remaining path
+      const remainingCoordinates = routeCoordinatesRef.current.slice(closestIndex); //temporary
+      // Prevent route from disappearing if user is ahead of the last point
+      if (remainingCoordinates.length < 2) { //temporary
+        // If less than 2 points, keep showing the last segment //temporary
+        // map.current.getSource('route').setData({ //prevtemporary
+        //   type: 'Feature', //prevtemporary
+        //   properties: {}, //prevtemporary
+        //   geometry: { //prevtemporary
+        //     type: 'LineString', //prevtemporary
+        //     coordinates: [] //prevtemporary
+        //   } //prevtemporary
+        // }); //prevtemporary
+        return; //temporary
+      }
+      map.current.getSource('route').setData({ //temporary
+        type: 'Feature', //temporary
+        properties: {}, //temporary
+        geometry: { //temporary
+          type: 'LineString', //temporary
+          coordinates: remainingCoordinates //temporary
+        } //temporary
+      }); //temporary
+      // Check if user has arrived
+      if (closestIndex === routeCoordinatesRef.current.length - 1) { //temporary
+        const distanceToEnd = haversineDistance(currentPosition, routeCoordinatesRef.current[routeCoordinatesRef.current.length - 1]); //temporary
+        if (distanceToEnd < 30) { // Within 30 meters of destination //temporary
+          setHasArrived(true); //temporary
+          setIsNavigating(false); //temporary
+        } //temporary
+      } //temporary
+    } //temporary
+  }, [currentPosition, isNavigating]);
 
   const initializeMap = () => {
     if (map.current || !mapContainer.current) return;
@@ -292,17 +357,48 @@ export default function SafeRouteMap({ end: propEnd }) {
     }
   }, [mapLoaded]);
 
+  const findClosestRoutePointIndex = (position, coordinates) => { //temporary
+    if (!coordinates || coordinates.length === 0) return 0;
+    
+    let closestIndex = 0;
+    let minDistance = Infinity;
+    
+    // Only search from current progress index forward for efficiency
+    for (let i = userProgressIndex; i < coordinates.length; i++) {
+      const dist = haversineDistance(position, coordinates[i]);
+      if (dist < minDistance) {
+        minDistance = dist;
+        closestIndex = i;
+      }
+    }
+    
+    return closestIndex;
+  };
+
+  const hasDeviatedFromRoute = (currentPos) => {
+    if (!currentRouteRef.current) return true;
+    
+    const routeCoordinates = currentRouteRef.current.geometry.coordinates;
+    let minDistance = Infinity;
+    
+    for (const coord of routeCoordinates) {
+      const dist = haversineDistance(currentPos, coord);
+      if (dist < minDistance) minDistance = dist;
+      if (dist < deviationThreshold) return false; // Still on route
+    }
+    
+    return minDistance > deviationThreshold;
+  };
+
   // Route calculation logic
   const updateRouteWithAvoidance = async (startPos, endPos) => {
-    if (!mapLoaded || !map.current) return;
+    if (!mapLoaded || !map.current) return null;
     try {
       // Direct route
       const directRoute = await getDirectRoute(startPos, endPos);
       if (dangerZones.length === 0) {
-        drawRoute(directRoute, '#3a86ff');
-        setRouteCalculated(true);
-        setShouldCalculateRoute(false);
-        return;
+        drawRoute(directRoute, '#00ff00');
+        return directRoute;
       }
       // Exclude start/destination zones
       const startZones = dangerZones.filter(zone => haversineDistance([zone.lng, zone.lat], startPos) <= zone.radius);
@@ -318,9 +414,7 @@ export default function SafeRouteMap({ end: propEnd }) {
           message: "You are starting or ending in a danger zone area. Stay alert.",
           color: "bg-yellow-100 text-yellow-800"
         } : null);
-        setRouteCalculated(true);
-        setShouldCalculateRoute(false);
-        return;
+        return directRoute;
       }
 
       // Try avoidance route
@@ -328,7 +422,6 @@ export default function SafeRouteMap({ end: propEnd }) {
       if (avoidanceRoute) {
         const avoidanceIntersections = checkRouteIntersection(avoidanceRoute, intersectingZones);
         const hasLocationZones = startZones.length > 0 || destinationZones.length > 0;
-        
         if (avoidanceIntersections.length === 0) {
           drawRoute(avoidanceRoute, '#00ff00');
           setRiskWarning({
@@ -338,32 +431,19 @@ export default function SafeRouteMap({ end: propEnd }) {
               : "Route successfully avoids all danger zones. Safe travel!",
             color: "bg-green-100 text-green-800"
           });
-          setRouteCalculated(true);
-          setShouldCalculateRoute(false);
-          return;
-        } else {
-          // This is supposed to be an avoidance route but still intersects - shouldn't happen
-          // Fall through to find best route instead of using this one
-          console.log("Avoidance route still intersects zones, trying best route selection...");
+          return avoidanceRoute;
         }
-        
         if (avoidanceIntersections.length === 0) {
-          setRouteCalculated(true);
-          setShouldCalculateRoute(false);
-          return;
+          return avoidanceRoute;
         }
       }
 
       // If no avoidance route, find best route with severity consideration
-      // If no clean avoidance route, find best route with severity consideration
       const bestRoute = await findBestRouteWithSeverityConsideration(startPos, endPos, intersectingZones);
       if (bestRoute && bestRoute.route) {
-        // Check if the best route actually intersects with danger zones
         const finalIntersections = checkRouteIntersection(bestRoute.route, intersectingZones);
         const hasLocationZones = startZones.length > 0 || destinationZones.length > 0;
-        
         if (finalIntersections.length === 0) {
-          // Best route is actually clean!
           drawRoute(bestRoute.route, '#00ff00');
           setRiskWarning({
             level: "SAFE ROUTE", 
@@ -372,11 +452,8 @@ export default function SafeRouteMap({ end: propEnd }) {
               : "Route successfully avoids all danger zones. Safe travel!",
             color: "bg-green-100 text-green-800"
           });
-          setRouteCalculated(true);
-          setShouldCalculateRoute(false);
-          return;
+          return bestRoute.route;
         } else {
-          // Route does pass through danger zones - use severity-based coloring
           const severityColor = bestRoute.maxSeverity >= 4 ? '#ff0000' :
                                 bestRoute.maxSeverity >= 3 ? '#ff6600' : '#ffff00';
           drawRoute(bestRoute.route, severityColor);
@@ -386,20 +463,15 @@ export default function SafeRouteMap({ end: propEnd }) {
             message: severityWarning,
             color: bestRoute.maxSeverity >= 4 ? "bg-red-100 text-red-800" : bestRoute.maxSeverity >= 3 ? "bg-orange-100 text-orange-800" : "bg-yellow-100 text-yellow-800"
           });
-          setRouteCalculated(true);
-          setShouldCalculateRoute(false);
-          return;
+          return bestRoute.route;
         }
       } else {
         setLocationError("No route found through danger zones.");
-        setShouldCalculateRoute(false);
-        setRouteCalculated(true);
-        return;
+        return null;
       }
     } catch (error) {
       setLocationError("Failed to calculate route. Please check your connection and try again.");
-      setShouldCalculateRoute(false);
-      setRouteCalculated(true);
+      return null;
     }
   };
   // NEW: Find the best route considering severity of danger zones
@@ -980,8 +1052,6 @@ const calculateCentroid = (zones) => {
     return bearing;
   };
 
-  // Draw route on the map with color coding
-  // Enhanced route drawing with severity-based color coding
   const drawRoute = (routeData, color = '#3a86ff', severityInfo = null) => {
     if (!mapLoaded || !routeData || !map.current) {
       console.log("Cannot draw route - map not ready");
@@ -990,6 +1060,9 @@ const calculateCentroid = (zones) => {
 
     try {
       console.log("Drawing route with color:", color);
+
+      routeCoordinatesRef.current = routeData.geometry.coordinates; //temporary
+      setUserProgressIndex(0); //temporary
       
       // Remove existing route
       if (map.current.getSource('route')) {
@@ -1048,7 +1121,6 @@ const calculateCentroid = (zones) => {
         }, 'route'); // Add below the main route layer
       }
 
-      // --- NEW: Update remaining distance ---
       if (routeData && routeData.distance) {
         setRemainingDistance(routeData.distance);
       } else {
@@ -1086,7 +1158,8 @@ const calculateCentroid = (zones) => {
       geolocateControlRef.current.trigger(); // Start tracking
       setIsNavigating(true);
       setShouldCalculateRoute(true);
-      setRouteCalculated(false);
+      setOpenOnce(false);
+      setOpenOnce(true);
     }
     // Start browser geolocation watch for real-time updates
     if (navigator.geolocation && !positionWatchId.current) {
@@ -1160,8 +1233,6 @@ const calculateCentroid = (zones) => {
     }
   };
 
-  // Google Places Autocomplete handler
-  // Modified Google Places handler
   const handlePlaceChanged = () => {
     const place = autocompleteRef.current?.getPlace();
     if (place?.geometry?.location) {
@@ -1171,8 +1242,6 @@ const calculateCentroid = (zones) => {
     }
   };
 
-  // Add these styled components at the top of your file
-  // Replace the RouteInfoCard with this responsive version:
   const ResponsiveRouteInfoCard = styled(Paper)(({ theme }) => ({
     position: 'absolute',
     top: theme.spacing(1),
@@ -1195,7 +1264,6 @@ const calculateCentroid = (zones) => {
     }
   }));
 
-  // Replace the RouteLegend with this responsive version:
   const ResponsiveRouteLegend = styled(Box)(({ theme }) => ({
     position: 'absolute',
     top: theme.spacing(1),
@@ -1216,7 +1284,6 @@ const calculateCentroid = (zones) => {
     }
   }));
 
-  // Replace the WarningAlert with this responsive version:
   const ResponsiveWarningAlert = styled(Paper)(({ severity, theme }) => ({
     position: 'absolute',
     top: theme.spacing(65), // Position below the distance box
@@ -1520,10 +1587,6 @@ const handleRecenter = () => {
   }
 };
 
-// Replace the return statement with this responsive version
-  // ...existing code...
-
-// Replace the main return statement with this version:
 return (
   <>
     {/* Prevent scrollbars on the whole app */}
@@ -1581,9 +1644,9 @@ return (
             zIndex: 1,
           }}
         />
-
+ 
         {/* Route Information Card */}
-        {remainingDistance !== null && (
+        {remainingDistance !== null && isNavigating && (
           <ResponsiveRouteInfoCard data-overlay="distance">
             <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' }, fontSize: { xs: '0.7rem', sm: '0.9rem' } }}>
               Remaining Distance
@@ -1649,7 +1712,7 @@ return (
           >
             {riskWarning.level.includes('HIGH') ? <ErrorIcon fontSize="small" /> :
               riskWarning.level.includes('MODERATE') ? <WarningIcon fontSize="small" /> : <CheckCircleIcon fontSize="small" />}
-            <Box>
+            <Box sx={{zIndex: 1000}}>
               <Typography variant="subtitle2" sx={{
                 fontWeight: 'bold',
                 fontSize: { xs: '1.1rem', sm: '0.9rem' }
@@ -1740,7 +1803,7 @@ return (
               position: 'absolute',
               bottom: { xs: 80, sm: 100 },
               right: { xs: 16, sm: 32 },
-              zIndex: 20
+              zIndex: 1
             }}
           >
             <Button
@@ -1790,7 +1853,7 @@ return (
         )}
 
         {/* Route Steps (mobile only) */}
-        {routeSteps.length > 0 && (
+        {routeSteps.length > 0 && isNavigating && (
           <Box sx={{
             position: 'absolute',
             top: { xs: 8, sm: 10 },
@@ -1878,7 +1941,7 @@ return (
       </Box>
     </Modal>
     <Modal
-      open={shouldCalculateRoute && !routeCalculated}
+      open={openOnce}
       aria-labelledby="route-loading-title"
       aria-describedby="route-loading-desc"
       sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}
@@ -1902,5 +1965,4 @@ return (
     </Modal>
   </>
 );
-// ...existing code...
 }

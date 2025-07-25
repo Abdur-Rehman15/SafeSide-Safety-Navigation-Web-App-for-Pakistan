@@ -6,7 +6,7 @@ import { sendWelcomeEmail } from '../utils/sendWelcomeEmail.js';
 // User registration
 export const register = async (req, res) => {
   try {
-    const { username, firstName, lastName, gender, email, password } = req.body;
+    const { username, firstName, lastName, gender, email, password, emergencyNumber } = req.body;
 
     // Check if user exists
     const existingUser = await User.findOne({ $or: [{ email }, { username }] });
@@ -25,7 +25,8 @@ export const register = async (req, res) => {
       lastName,
       gender,
       email,
-      password: hashedPassword
+      password: hashedPassword,
+      emergencyNumber
     });
 
     await user.save();
@@ -83,7 +84,8 @@ export const login = async (req, res) => {
       gender: user.gender,
       email: user.email,
       userId: user.userId,
-      token 
+      token,
+      emergencyNumber: user.emergencyNumber 
     });
   } catch (error) {
     res.status(500).json({ message: error.message });

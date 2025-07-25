@@ -27,6 +27,7 @@ export const AuthProvider = ({ children }) => {
       );
       localStorage.setItem('authToken', response.data.token);
       localStorage.setItem('userId', response.data.userId)
+      localStorage.setItem('emergencyNumber', response.data.emergencyNumber)
       setUser({
         username: response.data.username,
         firstName: response.data.firstName,
@@ -65,6 +66,7 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     localStorage.removeItem('authToken');
     localStorage.removeItem('userId');
+    localStorage.setItem('emergencyNumber');
     setUser(null);
     // navigate('/');
   };

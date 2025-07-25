@@ -47,7 +47,17 @@ const userSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now
-  }
+  },
+  emergencyNumber: {
+      type: String,
+      required: true,
+      validate: {
+        validator: function(v) {
+          return /^\d{11}$/.test(v);
+        },
+        message: props => `${props.value} is not a valid 11-digit emergency number!`
+      }
+  },
 });
 
 userSchema.pre('save', async function(next) {

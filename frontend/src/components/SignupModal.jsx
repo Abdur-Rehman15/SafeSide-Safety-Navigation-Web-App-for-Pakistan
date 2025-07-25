@@ -11,7 +11,8 @@ export default function SignupModal() {
     lastName: '',
     gender: '',
     email: '',
-    password: ''
+    password: '',
+    emergencyNumber: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -28,10 +29,11 @@ export default function SignupModal() {
         setActiveModal(null); // Close modal on success
         alert('Registration successful');
       } else {
-        setError(response.message || 'Registration failed');
+        setError('Registration failed');
       }
     } catch (err) {
       setError('An error occurred during registration');
+      console.log('signup ka error: ', err);
     } finally {
       setLoading(false);
     }
@@ -101,6 +103,23 @@ export default function SignupModal() {
             value={formData.password}
             onChange={(e) => setFormData({...formData, password: e.target.value})}
             required
+          />
+
+          <TextField
+            fullWidth
+            margin="normal"
+            label="Emergency Number"
+            name="emergencyNumber"
+            type="text"
+            value={formData.emergencyNumber}
+            onChange={(e) => {
+              // Only allow digits and max 11 characters
+              const val = e.target.value.replace(/[^0-9]/g, '').slice(0, 11);
+              setFormData({ ...formData, emergencyNumber: val });
+            }}
+            required
+            inputProps={{ maxLength: 11 }}
+            helperText="Enter your 11-digit emergency contact number"
           />
           
           {error && <p style={{ color: 'red' }}>{error}</p>}

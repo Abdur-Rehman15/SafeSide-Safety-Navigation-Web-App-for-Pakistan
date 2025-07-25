@@ -244,12 +244,10 @@ export default function LocationReview() {
 
     // Clean up existing layers and sources
     try {
-        if (map.current.getLayer('crime-reports')) {
-          map.current.removeLayer('crime-reports');
-        }
-        if (map.current.getSource('crime-reports')) {
-          map.current.removeSource('crime-reports');
-        }
+      if (map.current.getLayer('crime-reports')) map.current.removeLayer('crime-reports');
+      if (map.current.getLayer('clusters')) map.current.removeLayer('clusters');
+      if (map.current.getLayer('cluster-count')) map.current.removeLayer('cluster-count');
+      if (map.current.getSource('crime-reports')) map.current.removeSource('crime-reports');
     } catch (e) {
         console.log('Cleanup error:', e);
     }

@@ -18,6 +18,9 @@ import CloseIcon from '@mui/icons-material/Close';
 import DirectionsIcon from '@mui/icons-material/Directions';
 import Modal from '@mui/material/Modal';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import PhoneIcon from '@mui/icons-material/Phone';
+import ReportIcon from '@mui/icons-material/Report';
+import { useNavigate } from 'react-router-dom';
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -29,6 +32,7 @@ export default function SafeRouteMap({ end: propEnd }) {
   const inputRef = useRef();
   const destinationMarker = useRef(null);
   const geolocateControlRef = useRef();
+  const navigate = useNavigate();
 
   // Add a ref to store the geolocation watch ID
   const positionWatchId = useRef(null);
@@ -54,11 +58,11 @@ export default function SafeRouteMap({ end: propEnd }) {
   const dangerZonesDrawnRef = useRef(false);
   const currentRouteRef = useRef(null);
   const lastCalculatedPositionRef = useRef(null);
-  const [userProgressIndex, setUserProgressIndex] = useState(0); //temporary
-  const routeCoordinatesRef = useRef([]); //temporary
-  const lastUserPositionRef = useRef(null); //temporary
+  const [userProgressIndex, setUserProgressIndex] = useState(0);
+  const routeCoordinatesRef = useRef([]);
 
   const deviationThreshold = 40; // meters
+  const emergencyNumber = localStorage.getItem('emergecyNumber') || 15;
   
   // Map initialization
   const handleInitializeMap = () => {
@@ -235,48 +239,38 @@ export default function SafeRouteMap({ end: propEnd }) {
     if (propEnd) setEnd(propEnd);
   }, [propEnd]);
 
-  useEffect(() => { //temporary
+  useEffect(() => { 
     if (!isNavigating || !currentPosition || !map.current || !map.current.getSource('route')) return;
 
     // Find closest point on route to current position
-    const closestIndex = findClosestRoutePointIndex(currentPosition, routeCoordinatesRef.current); //temporary
+    const closestIndex = findClosestRoutePointIndex(currentPosition, routeCoordinatesRef.current);
     // Only update if user has progressed significantly
-    // if (closestIndex > userProgressIndex + 5 || closestIndex === routeCoordinatesRef.current.length - 1) { //prevtemporary
-    if (closestIndex > userProgressIndex /*|| closestIndex === routeCoordinatesRef.current.length - 1*/) { //temporary
-      setUserProgressIndex(closestIndex); //temporary
-      console.log('DRAWING TRIMMED ROUTE....'); //temporary
+    if (closestIndex > userProgressIndex) {
+      setUserProgressIndex(closestIndex);
+      console.log('DRAWING TRIMMED ROUTE....');
       // Update route geometry to only show remaining path
-      const remainingCoordinates = routeCoordinatesRef.current.slice(closestIndex); //temporary
+      const remainingCoordinates = routeCoordinatesRef.current.slice(closestIndex);
       // Prevent route from disappearing if user is ahead of the last point
-      if (remainingCoordinates.length < 2) { //temporary
-        // If less than 2 points, keep showing the last segment //temporary
-        // map.current.getSource('route').setData({ //prevtemporary
-        //   type: 'Feature', //prevtemporary
-        //   properties: {}, //prevtemporary
-        //   geometry: { //prevtemporary
-        //     type: 'LineString', //prevtemporary
-        //     coordinates: [] //prevtemporary
-        //   } //prevtemporary
-        // }); //prevtemporary
-        return; //temporary
+      if (remainingCoordinates.length < 2) {
+        return;
       }
-      map.current.getSource('route').setData({ //temporary
-        type: 'Feature', //temporary
-        properties: {}, //temporary
-        geometry: { //temporary
-          type: 'LineString', //temporary
-          coordinates: remainingCoordinates //temporary
-        } //temporary
-      }); //temporary
+      map.current.getSource('route').setData({
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'LineString',
+          coordinates: remainingCoordinates
+        }
+      });
       // Check if user has arrived
-      if (closestIndex === routeCoordinatesRef.current.length - 1) { //temporary
-        const distanceToEnd = haversineDistance(currentPosition, routeCoordinatesRef.current[routeCoordinatesRef.current.length - 1]); //temporary
-        if (distanceToEnd < 30) { // Within 30 meters of destination //temporary
-          setHasArrived(true); //temporary
-          setIsNavigating(false); //temporary
-        } //temporary
-      } //temporary
-    } //temporary
+      if (closestIndex === routeCoordinatesRef.current.length - 1) {
+        const distanceToEnd = haversineDistance(currentPosition, routeCoordinatesRef.current[routeCoordinatesRef.current.length - 1]);
+        if (distanceToEnd < 30) { // Within 30 meters of destination
+          setHasArrived(true);
+          setIsNavigating(false);
+        }
+      }
+    }
   }, [currentPosition, isNavigating]);
 
   const initializeMap = () => {
@@ -335,7 +329,7 @@ export default function SafeRouteMap({ end: propEnd }) {
         // Automatically trigger geolocation on initialization
         map.current.on('load', () => {
           setMapLoaded(true);
-          geolocateControlRef.current.trigger();
+          geolocateControlRef.current.trigger(); // Always trigger geolocation on map load
           if (destination) updateDestinationMarker(destination);       
         });
 
@@ -357,7 +351,7 @@ export default function SafeRouteMap({ end: propEnd }) {
     }
   }, [mapLoaded]);
 
-  const findClosestRoutePointIndex = (position, coordinates) => { //temporary
+  const findClosestRoutePointIndex = (position, coordinates) => {
     if (!coordinates || coordinates.length === 0) return 0;
     
     let closestIndex = 0;
@@ -522,7 +516,6 @@ export default function SafeRouteMap({ end: propEnd }) {
   };
 
   // NEW: Calculate severity impact of a route
-  // Fix 3: Update the calculateRouteSeverity function to ensure proper zone filtering
 
   const calculateRouteSeverity = (route, zonesToCheck) => {
     if (!route || !route.geometry || !route.geometry.coordinates) {
@@ -684,7 +677,7 @@ const calculateCentroid = (zones) => {
       advice = "Stay alert and avoid stopping in marked areas.";
     }
     
-    return `Route passes through ${zoneCount} danger zone${zoneCount > 1 ? 's' : ''} (Max severity: ${maxSeverity}/5). ${advice}`;
+    return `Route passes through ${zoneCount} danger zone${zoneCount > 1 ? 's' : ''} (Max severity: ${maxSeverity}/5). \n ${advice}`;
   };
 
   // Get direct route for analysis
@@ -906,30 +899,56 @@ const calculateCentroid = (zones) => {
       let dateStr = '';
       if (zone.createdAt) {
         const dateObj = new Date(zone.createdAt);
-        dateStr = dateObj.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+        dateStr = dateObj.toLocaleDateString(undefined, { 
+          year: 'numeric', 
+          month: 'short', 
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
       }
       // Use type of crime if available
       const crimeType = zone.type || 'Danger Zone';
+      const severity = zone.severity || 1;
+
       // Close previous popup if open
       if (currentZonePopup.current) {
         currentZonePopup.current.remove();
         currentZonePopup.current = null;
       }
       // Create popup with close button
-      const popup = new mapboxgl.Popup({ closeButton: false })
-        .setLngLat([zone.lng, zone.lat])
-        .setHTML(`
-          <div style="min-width:180px;max-width:240px;font-family:sans-serif;position:relative;">
-            <button id="zone-popup-close" style="position:absolute;top:4px;right:4px;background:transparent;border:none;font-size:1.2rem;cursor:pointer;color:#888;">&times;</button>
-            <div style="font-weight:700;font-size:1.1rem;margin-bottom:2px;">${crimeType}</div>
-            <div style="color:#666;font-size:0.85rem;margin-bottom:4px;">
-              <span style="font-weight:500;">Severity:</span> <span style="color:#b71c1c;">${zone.severity || 1}/5</span>
-            </div>
-            ${dateStr ? `<div style='color:#888;font-size:0.8rem;margin-bottom:4px;'><span style='font-weight:500;'>Posted:</span> ${dateStr}</div>` : ''}
-            <div style="font-size:0.95rem;margin-top:4px;">${zone.description || ''}</div>
+      const popup = new mapboxgl.Popup({ 
+      closeButton: false,
+      className: 'danger-popup',
+      maxWidth: 'none'
+    })
+      .setLngLat([zone.lng, zone.lat])
+      .setHTML(`
+        <div class="danger-popup-header">
+          <div class="danger-popup-title">
+            <span>${crimeType.toUpperCase()}</span>
           </div>
-        `)
-        .addTo(map.current);
+          <button class="danger-popup-close" id="zone-popup-close">&times;</button>
+        </div>
+        <div class="danger-popup-content">
+          <div class="danger-popup-meta">
+            <div class="danger-popup-severity">
+              <span>Severity:</span>
+              <span class="severity-indicator severity-${severity}"></span>
+              <span>${severity}/5</span>
+            </div>
+            ${dateStr ? `<div class="danger-popup-date">${dateStr}</div>` : ''}
+          </div>
+          
+          ${zone.description ? `
+            <div class="danger-popup-description">
+              ${zone.description}
+            </div>
+          ` : 'No description to show.'}
+          </div>
+        </div>
+      `)
+      .addTo(map.current);
       currentZonePopup.current = popup;
       // Add close button handler after popup is added to DOM
       setTimeout(() => {
@@ -1061,8 +1080,8 @@ const calculateCentroid = (zones) => {
     try {
       console.log("Drawing route with color:", color);
 
-      routeCoordinatesRef.current = routeData.geometry.coordinates; //temporary
-      setUserProgressIndex(0); //temporary
+      routeCoordinatesRef.current = routeData.geometry.coordinates;
+      setUserProgressIndex(0);
       
       // Remove existing route
       if (map.current.getSource('route')) {
@@ -1271,8 +1290,8 @@ const calculateCentroid = (zones) => {
     zIndex: 10,
     padding: theme.spacing(1),
     borderRadius: '10px',
-    backgroundColor: theme.palette.background.paper + 'e6',
-    backdropFilter: 'blur(2px)',
+    backgroundColor: 'white',
+    boxShadow: theme.shadows[3],
     minWidth: '90px',
     maxWidth: '90vw',
     [theme.breakpoints.up('sm')]: {
@@ -1600,6 +1619,121 @@ return (
         padding: 0 !important;
         overflow: hidden !important;
       }
+      .danger-popup {
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.15);
+      font-family: 'Roboto', sans-serif;
+      max-width: 280px;
+    }
+    
+    .danger-popup-header {
+      padding: 12px 16px;
+      background-color: ${theme.palette.warning.main};
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    
+    .danger-popup-title {
+      font-weight: 700;
+      font-size: 1.1rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .danger-popup-close {
+      background: none;
+      border: none;
+      color: white;
+      font-size: 1.4rem;
+      cursor: pointer;
+      padding: 4px;
+      margin: -4px;
+      line-height: 1;
+    }
+    
+    .danger-popup-content {
+      padding: 16px;
+      background: white;
+    }
+    
+    .danger-popup-meta {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 12px;
+    }
+    
+    .danger-popup-severity {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-weight: 500;
+    }
+    
+    .severity-indicator {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+    
+    .danger-popup-date {
+      color: #666;
+      font-size: 0.85rem;
+    }
+    
+    .danger-popup-description {
+      margin: 12px 0;
+      line-height: 1.5;
+      color: #333;
+    }
+    
+    .danger-popup-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px;
+    }
+    
+    .danger-popup-btn {
+      flex: 1;
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: none;
+      font-weight: 500;
+      font-size: 0.85rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+    
+    .danger-popup-btn-report {
+      background-color: #f5f5f5;
+      color: #333;
+    }
+    
+    .danger-popup-btn-report:hover {
+      background-color: #e0e0e0;
+    }
+    
+    .danger-popup-btn-emergency {
+      background-color: #f44336;
+      color: white;
+    }
+    
+    .danger-popup-btn-emergency:hover {
+      background-color: #d32f2f;
+    }
+    
+    .severity-1 { background-color: #bbff00; }
+    .severity-2 { background-color: #aaff00; }
+    .severity-3 { background-color: #ffff00; }
+    .severity-4 { background-color: #ffaa00; }
+    .severity-5 { background-color: #ff0000; }
     `}</style>
     {/* Main container with responsive gap */}
     <Box
@@ -1795,38 +1929,115 @@ return (
           </Box>
         )}
 
-        {/* Recenter button during navigation */}
+        {/* Emergency Button (bottom right) */}
         {isNavigating && (
-          <Box
-            ref={recenterButtonRef}
-            sx={{
-              position: 'absolute',
-              bottom: { xs: 80, sm: 100 },
-              right: { xs: 16, sm: 32 },
-              zIndex: 1
-            }}
-          >
-            <Button
-              variant="contained"
-              color="primary"
-              size="medium"
-              onClick={handleRecenter}
+          <>
+            <Box
+              ref={recenterButtonRef}
               sx={{
-                borderRadius: '50%',
-                minWidth: 0,
-                width: 48,
-                height: 48,
-                p: 0,
-                boxShadow: 3,
-                backgroundColor: theme.palette.primary.main,
-                '&:hover': {
-                  backgroundColor: theme.palette.primary.dark
-                }
+                position: 'absolute',
+                bottom: { xs: 80, sm: 100 },
+                right: { xs: 16, sm: 32 },
+                zIndex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
               }}
             >
-              <LocationIcon sx={{ color: 'white' }} />
-            </Button>
-          </Box>
+              <Button
+                variant="contained"
+                color="warning"
+                size="medium"
+                onClick={() => {
+                  window.open(`tel: ${emergencyNumber}`);
+                }}
+                sx={{
+                  borderRadius: '50%',
+                  minWidth: 0,
+                  width: 40,
+                  height: 40,
+                  p: 0,
+                  boxShadow: 3,
+                  backgroundColor: theme.palette.warning.main,
+                  '&:hover': {
+                    backgroundColor: theme.palette.warning.dark
+                  },
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <PhoneIcon sx={{ color: 'white', fontSize: 22 }} />
+              </Button>
+              <Typography
+                variant="caption"
+                sx={{
+                  mt: 1,
+                  color: theme.palette.warning.main,
+                  fontWeight: 600,
+                  fontSize: '0.75rem',
+                  textAlign: 'center',
+                  letterSpacing: 1,
+                  textTransform: 'uppercase',
+                  userSelect: 'none',
+                }}
+              >
+                Emergency
+              </Typography>
+            </Box>
+
+            {/* Report Button (bottom left) */}
+            <Box
+              sx={{
+                position: 'absolute',
+                bottom: { xs: 80, sm: 100 },
+                left: { xs: 16, sm: 32 },
+                zIndex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+              }}
+            >
+              <Button
+                variant="contained"
+                color="warning"
+                size="medium"
+                onClick={() => navigate('/report-crime')}
+                sx={{
+                  borderRadius: '50%',
+                  minWidth: 0,
+                  width: 40,
+                  height: 40,
+                  p: 0,
+                  boxShadow: 3,
+                  backgroundColor: theme.palette.warning.main,
+                  '&:hover': {
+                    backgroundColor: theme.palette.warning.dark
+                  },
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <ReportIcon sx={{ color: 'white', fontSize: 22 }} />
+              </Button>
+              <Typography
+                variant="caption"
+                sx={{
+                  mt: 1,
+                  color: theme.palette.warning.main,
+                  fontWeight: 600,
+                  fontSize: '0.75rem',
+                  textAlign: 'center',
+                  letterSpacing: 1,
+                  textTransform: 'uppercase',
+                  userSelect: 'none',
+                }}
+              >
+                Report
+              </Typography>
+            </Box>
+          </>
         )}
 
         {/* Loading Danger Zones Overlay */}

@@ -1,5 +1,6 @@
 import CrimeReport from '../models/CrimeReport.js';
 import User from '../models/User.js';
+import { validateCrimeReportComments } from '../utils/gemini.js';
 
 // Submit a crime report with votes initialization
 export const submitCrimeReport = async (req, res) => {
@@ -10,6 +11,20 @@ export const submitCrimeReport = async (req, res) => {
     // Validate coordinates
     if (!longitude || !latitude) {
       return res.status(400).json({ message: 'Please provide valid coordinates' });
+    }
+
+    // Validate required fields
+    if (!typeOfCrime || !comments) {
+      return res.status(400).json({ message: 'Please provide both crime type and comments' });
+    }
+
+    // Validate comments using Gemini AI
+    const isCommentsValid = await validateCrimeReportComments(typeOfCrime, comments);
+    
+    if (!isCommentsValid) {
+      return res.status(400).json({ 
+        message: 'The comments provided do not match the reported crime type or appear to be irrelevant. Please provide relevant details about the incident.' 
+      });
     }
 
     const user = await User.findOne({ userId });

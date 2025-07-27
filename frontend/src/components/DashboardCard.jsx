@@ -1,7 +1,7 @@
 import { Card, CardContent, Typography, Button, Box, styled } from '@mui/material';
 
 const SafetyCard = styled(Card)(({ theme }) => ({
-  width: '100%',
+  width: 280, // Fixed width instead of 100%
   height: 320, // Fixed height
   display: 'flex',
   flexDirection: 'column',

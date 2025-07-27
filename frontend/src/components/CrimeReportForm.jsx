@@ -26,6 +26,8 @@ import {
   CheckCircle as SuccessIcon
 } from '@mui/icons-material';
 
+const REPORT_URL = import.meta.env.VITE_REPORT_URL;
+
 const CompactCard = styled(Card)(({ selected }) => ({
   cursor: 'pointer',
   border: `2px solid ${selected ? '#6A1B9A' : '#E0E0E0'}`,
@@ -111,7 +113,7 @@ export default function CrimeReportForm() {
     setSubmitError('');
 
     try {
-      await axios.post('http://localhost:5000/report/submit-report', {
+      await axios.post(`${REPORT_URL}/submit-report`, {
         ...formData,
         longitude: location.longitude,
         latitude: location.latitude,
@@ -378,8 +380,8 @@ export default function CrimeReportForm() {
                   gap: 1,
                   mb: 2
                 }}>
-                  <WarningIcon color="error" sx={{ fontSize: 20 }} />
-                  <Typography variant="caption" color="error">
+                  <WarningIcon color="error" sx={{ fontSize: 20, color: 'white' }} />
+                  <Typography variant="caption" color='white'>
                     {submitError}
                   </Typography>
                 </Box>

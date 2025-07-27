@@ -119,7 +119,7 @@ export default function SignupModal() {
             }}
             required
             inputProps={{ maxLength: 11 }}
-            helperText="Enter your 11-digit emergency contact number"
+            helperText="Number to be contacted in case of emergency"
           />
           
           {error && <p style={{ color: 'red' }}>{error}</p>}

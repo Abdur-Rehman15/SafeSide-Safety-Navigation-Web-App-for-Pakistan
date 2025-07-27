@@ -6,6 +6,7 @@ import { Button } from '@mui/material';
 import { useAuth } from '../components/AuthContext';
 import LoginModal from '../components/LoginModal';
 import SignupModal from '../components/SignupModal';
+import safetyTravelImg from '../assets/safety_travel.svg';
 
 // Feature Icons
 const RealTimeIcon = () => (
@@ -102,7 +103,7 @@ const LandingPage = () => {
             animate={{ opacity: 1 }}
             transition={{ delay: 0.7 }}
           >
-            Navigate Pakistan with confidence using real-time danger alerts and community-powered safety features.
+            Navigate in Pakistan with confidence using real-time danger alerts and travelling on safest routes.
           </motion.p>
           <div className="cta-container">
             <motion.button
@@ -113,36 +114,23 @@ const LandingPage = () => {
             >
               Get Started
             </motion.button>
-            <motion.button
-              className="cta-button secondary"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => window.open('https://linkedin.com/in/abdurrehman887/', '_blank')}
-            >
-              See How It Works
-            </motion.button>
           </div>
         </motion.div>
-        <motion.div
-          className="hero-image"
-          initial={{ opacity: 0, x: 50 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.5, duration: 0.7 }}
-        >
-          <div className="phone-mockup">
-            <div className="screen">
-              <div className="map-interface">
-                <div className="safe-route"></div>
-                <div className="danger-zones">
-                  <div className="danger-marker"></div>
-                  <div className="danger-marker"></div>
-                  <div className="danger-marker"></div>
-                </div>
-                <div className="user-avatar"></div>
-              </div>
-            </div>
-          </div>
-        </motion.div>
+        
+          <img
+            src={safetyTravelImg}
+            alt="Safety travel illustration"
+            style={{
+              width: '100%',
+              maxWidth: 800,
+              height: 'auto',
+              borderRadius: 0,
+              margin: '0 auto',
+              display: 'block',
+              background: 'none',
+              padding: 0
+            }}
+          />
       </section>
 
       {/* ===== SAFETY STATS ===== */}
@@ -219,22 +207,39 @@ const LandingPage = () => {
           ))}
         </div>
       </section>
-
-      {/* ===== CTA SECTION ===== */}
-      <section className="final-cta">
-        <div className="cta-background"></div>
-        <div className="cta-content">
-          <h2>Ready to Take Control of Your Safety?</h2>
-          <motion.button
-            className="cta-button primary large"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => navigate('/signup')}
-          >
-            Join SafeRoute Today
-          </motion.button>
+            {/* ===== FOOTER ===== */}
+      <footer className="premium-footer">
+        <div className="footer-content">
+          <div className="footer-brand">
+            <div className="app-logo">
+              <ShieldIcon />
+            </div>
+            <h2 className="app-name">
+              SafeSide <span>Pakistan</span>
+            </h2>
+          </div>
+          <div className="footer-contacts">
+            <a href="mailto:support@safeside.pk" className="contact-link">
+              <svg className="contact-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M4 4H20C21.1 4 22 4.9 22 6V18C22 19.1 21.1 20 20 20H4C2.9 20 2 19.1 2 18V6C2 4.9 2.9 4 4 4Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M22 6L12 13L2 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              safesidenavigation@gmail.com
+            </a>
+            <a href="https://linkedin.com/in/abdurrehman887/" target="_blank" rel="noopener noreferrer" className="contact-link">
+              <svg className="contact-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M16 8C17.5913 8 19.1174 8.63214 20.2426 9.75736C21.3679 10.8826 22 12.4087 22 14V21H18V14C18 13.4696 17.7893 12.9609 17.4142 12.5858C17.0391 12.2107 16.5304 12 16 12C15.4696 12 14.9609 12.2107 14.5858 12.5858C14.2107 12.9609 14 13.4696 14 14V21H10V14C10 12.4087 10.6321 10.8826 11.7574 9.75736C12.8826 8.63214 14.4087 8 16 8Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M6 9H2V21H6V9Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M4 6C5.10457 6 6 5.10457 6 4C6 2.89543 5.10457 2 4 2C2.89543 2 2 2.89543 2 4C2 5.10457 2.89543 6 4 6Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              /abdurrehman887
+            </a>
+          </div>
         </div>
-      </section>
+        <div className="footer-copyright">
+          © {new Date().getFullYear()} SafeSide Pakistan. All rights reserved.
+        </div>
+      </footer>
     </div>
   );
 };
@@ -249,46 +254,40 @@ const ShieldIcon = () => (
 // Data
 const features = [
   {
-    icon: <RealTimeIcon />,
-    title: "Real-Time Alerts",
-    description: "Instant notifications about reported incidents along your route with verified community updates."
-  },
-  {
     icon: <RouteIcon />,
     title: "Smart Re-Routing",
     description: "Automatically suggests safer alternative paths based on current safety data."
   },
   {
-    icon: <CommunityIcon />,
-    title: "Community Watch",
-    description: "Contribute to and benefit from a network of women looking out for each other."
+    icon: <RealTimeIcon />,
+    title: "Real-Time Alerts",
+    description: "Instant notifications about reported incidents along your route with details."
   },
   {
     icon: <EmergencyIcon />,
     title: "Emergency Features",
-    description: "Quick-access emergency contacts and alert system for immediate assistance."
+    description: "Quick-access to emergency contacts and alert system for immediate assistance."
   }
 ];
 
 const stats = [
-  { value: "10,000+", label: "Active Users" },
-  { value: "500+", label: "Cities Covered" },
-  { value: "20,000+", label: "Verified Reports" },
+  { value: "1000+", label: "Active Users" },
+  { value: "10+", label: "Cities Covered" },
+  { value: "500+", label: "Verified Reports" },
   { value: "24/7", label: "Safety Monitoring" }
 ];
 
 const testimonials = [
   {
-    content: "SafeRoute gives me the confidence to travel alone. The community alerts have helped me avoid several unsafe areas.",
+    content: "SafeSide Pakistan gives me the confidence to travel alone. The community alerts have helped me avoid several unsafe areas.",
     name: "Ayesha Khan",
     location: "Lahore"
   },
   {
-    content: "As a university student who travels late, this app has been a game-changer for my safety and my parents' peace of mind.",
+    content: "As a university student who travels late, this app has been a game-changer for my safety.",
     name: "Fatima Ahmed",
     location: "Karachi"
   }
 ];
-
 
 export default LandingPage;

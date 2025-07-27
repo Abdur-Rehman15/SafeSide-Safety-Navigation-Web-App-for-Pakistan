@@ -1,24 +1,19 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
-import { useNavigate } from 'react-router';
 import axios from 'axios';
 
 const AuthContext = createContext();
+const USER_URL = import.meta.env.VITE_USER_URL;
 
 export const AuthProvider = ({ children }) => {
   // const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeModal, setActiveModal] = useState(null); 
-
-  useEffect(() => {
-    const token = localStorage.getItem('authToken');
-    
-  }, []);
   
   const login = async (credentials) => {
     try {
       const response = await axios.post(
-        'http://localhost:5000/user/login',
+        `${USER_URL}/login`,
         credentials,
         {
           headers: { 'Accept': 'application/json' },
@@ -47,7 +42,7 @@ export const AuthProvider = ({ children }) => {
   const register = async (formData) => {
     try {
       const registeredUser = await axios.post(
-        'http://localhost:5000/user/register',
+        `${USER_URL}/register`,
         formData,
         {
           headers: { 'Accept': 'application/json' },
@@ -66,9 +61,8 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     localStorage.removeItem('authToken');
     localStorage.removeItem('userId');
-    localStorage.setItem('emergencyNumber');
+    localStorage.removeItem('emergencyNumber');
     setUser(null);
-    // navigate('/');
   };
 
   return (

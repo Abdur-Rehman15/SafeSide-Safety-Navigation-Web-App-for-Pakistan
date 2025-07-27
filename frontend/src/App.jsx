@@ -39,12 +39,12 @@ const router = createBrowserRouter([
         path: "/location-review",
         element: <LocationReview/>
       },
+      {
+        path: "/safe-route",
+        element: <SafeRouteMap/>
+      }
     ],
   },
-  {
-    path: "/safe-route",
-    element: <SafeRouteMap/>
-  }
 ]);
 
 function App() {

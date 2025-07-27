@@ -1,5 +1,4 @@
-import React, { useState, useContext, use } from 'react';
-import axios from 'axios';
+import React, { useState } from 'react';
 import {
   Dialog,
   TextField,
@@ -8,7 +7,7 @@ import {
   DialogContent,
   CircularProgress
 } from '@mui/material';
-import { useAuth} from './AuthContext';
+import { useAuth } from './AuthContext';
 import { useNavigate } from 'react-router';
 
 export default function LoginModal() {

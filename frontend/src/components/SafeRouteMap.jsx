@@ -4,9 +4,8 @@ import { useJsApiLoader, Autocomplete } from '@react-google-maps/api';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import axios from 'axios';
-import { TextField, Button, Typography, Box, Paper, Radio, RadioGroup, FormControlLabel, styled, InputAdornment, Alert,
+import { TextField, Button, Typography, Box, Paper, styled, InputAdornment, Alert,
   useTheme, Grid } from '@mui/material';
-import FormControl from '@mui/material/FormControl';
 import DriveIcon from '@mui/icons-material/DirectionsCar';
 import WalkIcon from '@mui/icons-material/DirectionsWalk';
 import { LocationOn as LocationIcon } from '@mui/icons-material';
@@ -23,8 +22,10 @@ import ReportIcon from '@mui/icons-material/Report';
 import { useNavigate } from 'react-router-dom';
 import Snackbar from '@mui/material/Snackbar';
 import IconButton from '@mui/material/IconButton';
+import SearchIcon from '@mui/icons-material/Search';
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
+const REPORT_URL = import.meta.env.VITE_REPORT_URL;
 
 export default function SafeRouteMap({ end: propEnd }) {
   const theme = useTheme();
@@ -71,6 +72,11 @@ export default function SafeRouteMap({ end: propEnd }) {
   const routeCoordinatesRef = useRef([]);
   const [routeSafetyChange, setRouteSafetyChange] = useState(null);
   const lastRouteSeverityRef = useRef(null);
+  const [routeColor, setRouteColor] = useState('#3a86ff');
+  const [routeType, setRouteType] = useState('Normal');
+  const [autoRecenter, setAutoRecenter] = useState(true);
+  const originalRouteTypeRef = useRef(null);
+
 
   const deviationThreshold = 40; // meters
   const emergencyNumber = localStorage.getItem('emergecyNumber') || 15;
@@ -100,78 +106,110 @@ export default function SafeRouteMap({ end: propEnd }) {
     }
   }, [mapLoaded, end]);
 
+  // Add this effect to handle auto-recentering when enabled
+  useEffect(() => {
+    if (!map.current || !currentPosition || !autoRecenter) return;
+
+    const recenterMap = () => {
+      map.current.flyTo({
+        center: currentPosition,
+        zoom: 16,
+        essential: true
+      });
+    };
+
+    recenterMap();
+  }, [currentPosition, autoRecenter]);
+
+  // Add this handler for map drag events
+  useEffect(() => {
+    if (!map.current) return;
+
+    const handleDragStart = () => {
+      setAutoRecenter(false);
+    };
+
+    map.current.on('dragstart', handleDragStart);
+
+    return () => {
+      if (map.current) {
+        map.current.off('dragstart', handleDragStart);
+      }
+    };
+  }, [map.current]);
+
   // Danger zones fetch
   useEffect(() => {
     if (!currentPosition) return;
     const fetchDangerZones = async () => {
       try {
-      //   const response = await axios.get('http://localhost:5000/report/all-reports', {
-      //     headers: {
-      //       Authorization: `Bearer ${localStorage.getItem('authToken')}`,
-      //       'Accept': 'application/json',
-      //       'Content-Type': 'application/json'
-      //     },
-      //     withCredentials: true
-      //   });
-
-        const response=[
-          {
-              "location": {
-                  "type": "Point",
-                  "coordinates": [
-                      74.26,
-                      31.390014
-                  ]
-              },
-              "votes": {
-                  "upvotes": [],
-                  "downvotes": [],
-                  "score": 0
-              },
-              "_id": "687a61eed4f0cdeb1eab8bb4",
-              "user": {
-                  "_id": "6876ba94936e42ef917f665a",
-                  "firstName": "Abdur",
-                  "lastName": "Rehman",
-                  "email": "abdurrehman@gmail.com"
-              },
-              "userId": 1,
-              "typeOfCrime": "harassment",
-              "severity": 5,
-              "comments": "neww!",
-              "reportedAt": "2025-07-18T15:02:06.033Z",
-              "__v": 0
+        const response = await axios.get(`${REPORT_URL}/all-reports`, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('authToken')}`,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
           },
-          {
-              "location": {
-                  "type": "Point",
-                  "coordinates": [
-                      74.244,
-                      31.3909
-                  ]
-              },
-              "votes": {
-                  "upvotes": [],
-                  "downvotes": [],
-                  "score": 0
-              },
-              "_id": "687b98f08a6ebc4d1eed50d5",
-              "user": {
-                  "_id": "6876ba94936e42ef917f665a",
-                  "firstName": "Abdur",
-                  "lastName": "Rehman",
-                  "email": "abdurrehman@gmail.com"
-              },
-              "userId": 1,
-              "typeOfCrime": "robbery",
-              "severity": 3,
-              "comments": "my loc",
-              "reportedAt": "2025-07-19T13:09:04.530Z",
-              "__v": 0
-          }
-        ];
+          withCredentials: true
+        });
 
-        const zones = response.map((report, index) => ({
+        // const response=[
+        //   {
+        //       "location": {
+        //           "type": "Point",
+        //           "coordinates": [
+        //               74.26,
+        //               31.390014
+        //           ]
+        //       },
+        //       "votes": {
+        //           "upvotes": [],
+        //           "downvotes": [],
+        //           "score": 0
+        //       },
+        //       "_id": "687a61eed4f0cdeb1eab8bb4",
+        //       "user": {
+        //           "_id": "6876ba94936e42ef917f665a",
+        //           "firstName": "Abdur",
+        //           "lastName": "Rehman",
+        //           "email": "abdurrehman@gmail.com"
+        //       },
+        //       "userId": 1,
+        //       "typeOfCrime": "harassment",
+        //       "severity": 5,
+        //       "comments": "neww!",
+        //       "reportedAt": "2025-07-18T15:02:06.033Z",
+        //       "__v": 0
+        //   },
+        //   {
+        //       "location": {
+        //           "type": "Point",
+        //           "coordinates": [
+        //               74.244,
+        //               31.3909
+        //           ]
+        //       },
+        //       "votes": {
+        //           "upvotes": [],
+        //           "downvotes": [],
+        //           "score": 0
+        //       },
+        //       "_id": "687b98f08a6ebc4d1eed50d5",
+        //       "user": {
+        //           "_id": "6876ba94936e42ef917f665a",
+        //           "firstName": "Abdur",
+        //           "lastName": "Rehman",
+        //           "email": "abdurrehman@gmail.com"
+        //       },
+        //       "userId": 1,
+        //       "typeOfCrime": "robbery",
+        //       "severity": 3,
+        //       "comments": "my loc",
+        //       "reportedAt": "2025-07-19T13:09:04.530Z",
+        //       "__v": 0
+        //   }
+        // ];
+
+        const zones = response.data.map((report, index) => ({
           id: report._id || `zone-${index}`,
           lat: report.location.coordinates[1],
           lng: report.location.coordinates[0],
@@ -284,30 +322,46 @@ export default function SafeRouteMap({ end: propEnd }) {
 
       // Recalculate severity for the remaining route
       const remainingRouteSeverity = calculateRouteSeverity(remainingRoute, dangerZones);
-      
-      // Check if route safety level has changed
-      if (lastRouteSeverityRef.current !== null && 
-          lastRouteSeverityRef.current.maxSeverity !== remainingRouteSeverity.maxSeverity) {
-        setRouteSafetyChange({
-          from: lastRouteSeverityRef.current.maxSeverity,
-          to: remainingRouteSeverity.maxSeverity,
-          timestamp: Date.now()
-        });
-        // Clear the notification after 3 seconds
-        setTimeout(() => setRouteSafetyChange(null), 3000);
-      }
       lastRouteSeverityRef.current = remainingRouteSeverity;
       
       // Determine color based on remaining danger zones
-      let routeColor = '#3a86ff'; // Default blue
+      let routeColor;
       if (remainingRouteSeverity.maxSeverity >= 4) {
         routeColor = '#ff0000'; // Red for high risk
       } else if (remainingRouteSeverity.maxSeverity >= 3) {
         routeColor = '#ff6600'; // Orange for moderate risk
       } else if (remainingRouteSeverity.maxSeverity >= 1) {
         routeColor = '#ffff00'; // Yellow for low risk
-      } else {
+      } else if (remainingRouteSeverity.maxSeverity === 0 && remainingRouteSeverity.intersectingZones.length > 0) {
         routeColor = '#00ff00'; // Green for safe
+      } else {
+        routeColor = '#3a86ff'; // Blue for normal (no danger zones at all)
+      }
+
+      let routeType = 'Normal';
+      if (routeColor === '#ff0000') {
+        routeType = 'High Risk';
+      } else if (routeColor === '#ff6600') {
+        routeType = 'Moderate Risk';
+      } else if (routeColor === '#ffff00') {
+        routeType = 'Low Risk';
+      } else if (routeColor === '#00ff00') {
+        routeType = 'Safe';
+      } else if (routeColor === '#3a86ff') {
+        routeType = 'Normal';
+      }
+      // Persist green if original route was safe
+      if (
+        originalRouteTypeRef.current === 'Safe' &&
+        remainingRouteSeverity.maxSeverity === 0
+      ) {
+        routeColor = '#00ff00';
+        routeType = 'Safe';
+      }
+      setRouteColor(routeColor);
+      setRouteType(routeType);
+      if (userProgressIndex === 0) {
+        originalRouteTypeRef.current = routeType;
       }
 
       // Get color name for logging
@@ -358,6 +412,12 @@ export default function SafeRouteMap({ end: propEnd }) {
       // Update route color
       try {
         if (map.current.getLayer('route')) {
+          console.log('Setting route color:', routeColor);
+          if (!routeColor) {
+            // Fallback: use previous color or red for high risk
+            routeColor = routeColor || routeColorState || '#ff0000';
+            console.warn('routeColor was falsy, falling back to:', routeColor);
+          }
           map.current.setPaintProperty('route', 'line-color', routeColor);
           
           // Update line width based on severity
@@ -415,33 +475,6 @@ export default function SafeRouteMap({ end: propEnd }) {
       }
       setRemainingDistance(totalRemainingDistance);
 
-      // Update risk warning based on remaining path
-      if (remainingRouteSeverity.maxSeverity >= 4) {
-        setRiskWarning({
-          level: "HIGH RISK",
-          message: `Remaining route passes through ${remainingRouteSeverity.intersectingZones.length} high-risk danger zone(s). Exercise extreme caution.`,
-          color: "bg-red-100 text-red-800"
-        });
-      } else if (remainingRouteSeverity.maxSeverity >= 3) {
-        setRiskWarning({
-          level: "⚠️ MODERATE RISK",
-          message: `Remaining route passes through ${remainingRouteSeverity.intersectingZones.length} moderate-risk danger zone(s). Stay alert.`,
-          color: "bg-orange-100 text-orange-800"
-        });
-      } else if (remainingRouteSeverity.maxSeverity >= 1) {
-        setRiskWarning({
-          level: "⚠️ LOW RISK",
-          message: `Remaining route passes through ${remainingRouteSeverity.intersectingZones.length} low-risk danger zone(s). Stay cautious.`,
-          color: "bg-yellow-100 text-yellow-800"
-        });
-      } else {
-        setRiskWarning({
-          level: "SAFE ROUTE",
-          message: "Remaining route is clear of danger zones. Safe travel!",
-          color: "bg-green-100 text-green-800"
-        });
-      }
-
       // Check if user has arrived
       if (closestIndex === routeCoordinatesRef.current.length - 1) {
         const distanceToEnd = haversineDistance(currentPosition, routeCoordinatesRef.current[routeCoordinatesRef.current.length - 1]);
@@ -477,7 +510,6 @@ export default function SafeRouteMap({ end: propEnd }) {
         });
 
         // Add controls
-        map.current.addControl(new mapboxgl.NavigationControl());
         map.current.addControl(new mapboxgl.ScaleControl());
 
         // Only initialize destination marker
@@ -848,7 +880,7 @@ const calculateCentroid = (zones) => {
     
     if (maxSeverity >= 4) {
       warningLevel = "HIGH RISK";
-      advice = "Keep an eye on surroundings and report immediately if you feel unsafe.";
+      advice = "Keep an eye on surroundings and beware.";
     } else if (maxSeverity >= 3) {
       warningLevel = "MODERATE RISK";
       advice = "Exercise extreme caution and consider travelling with others.";
@@ -857,7 +889,7 @@ const calculateCentroid = (zones) => {
       advice = "Stay alert and avoid stopping in marked areas.";
     }
     
-    return `Route passes through ${zoneCount} danger zone${zoneCount > 1 ? 's' : ''} (Max severity: ${maxSeverity}/5). \n ${advice}`;
+    return `Route passes through ${zoneCount} danger zone${zoneCount > 1 ? 's' : ''}. ${advice}`;
   };
 
   // Get direct route for analysis
@@ -1251,14 +1283,49 @@ const calculateCentroid = (zones) => {
     return bearing;
   };
 
-  const drawRoute = (routeData, color = '#3a86ff', severityInfo = null) => {
+  const drawRoute = (routeData, color = null, severityInfo = null) => {
     if (!mapLoaded || !routeData || !map.current) {
       console.log("Cannot draw route - map not ready");
       return;
     }
 
+    // Determine color if not provided
+    let routeColor = color;
+    if (severityInfo) {
+      if (severityInfo.maxSeverity >= 4) {
+        routeColor = '#ff0000';
+      } else if (severityInfo.maxSeverity >= 3) {
+        routeColor = '#ff6600';
+      } else if (severityInfo.maxSeverity >= 1) {
+        routeColor = '#ffff00';
+      } else if (severityInfo.maxSeverity === 0 && severityInfo.intersectingZones && severityInfo.intersectingZones.length > 0) {
+        routeColor = '#00ff00';
+      } else {
+        routeColor = '#3a86ff';
+      }
+    }
+    setRouteColor(routeColor);
+
+    // Set route type based on color
+    let routeType = 'Normal';
+    if (routeColor === '#ff0000') {
+      routeType = 'High Risk';
+    } else if (routeColor === '#ff6600') {
+      routeType = 'Moderate Risk';
+    } else if (routeColor === '#ffff00') {
+      routeType = 'Low Risk';
+    } else if (routeColor === '#00ff00') {
+      routeType = 'Safe';
+    } else if (routeColor === '#3a86ff') {
+      routeType = 'Normal';
+    }
+    setRouteType(routeType);
+    if (userProgressIndex === 0) {
+      originalRouteTypeRef.current = routeType;
+    }
+
     try {
-      console.log("Drawing route with color:", color);
+      console.log("Drawing route with color:", routeColor, "Type:", routeType);
 
       routeCoordinatesRef.current = routeData.geometry.coordinates;
       setUserProgressIndex(0);
@@ -1296,7 +1363,7 @@ const calculateCentroid = (zones) => {
           'line-cap': 'round'
         },
         paint: {
-          'line-color': color,
+          'line-color': routeColor,
           'line-width': lineWidth,
           'line-opacity': 0.8
         }
@@ -1332,33 +1399,14 @@ const calculateCentroid = (zones) => {
     }
   };
 
-  // 4. Add new helper functions:
-  const createNavigationMarker = (position, heading) => {
-    const el = document.createElement('div');
-    el.innerHTML = `
-      <div style="
-        width: 20px; 
-        height: 20px; 
-        background: #00FF00;
-        border: 3px solid white;
-        border-radius: 50% 50% 50% 0;
-        transform: rotate(${heading - 45}deg);
-        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-      "></div>
-    `;
-    
-    return new mapboxgl.Marker({ element: el, anchor: 'center' })
-      .setLngLat(position);
-  };
-
   const handleStartNavigation = () => {
     if (geolocateControlRef.current) {
       console.log("Triggering geolocation");
       geolocateControlRef.current.trigger(); // Start tracking
       setIsNavigating(true);
       setShouldCalculateRoute(true);
-      setOpenOnce(false);
       setOpenOnce(true);
+      setAutoRecenter(false); // Do NOT auto-center on navigation start
     }
     // Start browser geolocation watch for real-time updates
     if (navigator.geolocation && !positionWatchId.current) {
@@ -1366,7 +1414,9 @@ const calculateCentroid = (zones) => {
         (position) => {
           const newPosition = [position.coords.longitude, position.coords.latitude];
           setCurrentPosition(newPosition);
-          map.current.setCenter(newPosition);
+          if (isNavigating && autoRecenter && map.current) {
+            map.current.setCenter(newPosition);
+          }
         },
         (error) => {
           setLocationError(getLocationErrorMessage(error));
@@ -1444,47 +1494,25 @@ const calculateCentroid = (zones) => {
     }
   };
 
-  const ResponsiveRouteInfoCard = styled(Paper)(({ theme }) => ({
-    position: 'absolute',
-    top: theme.spacing(1),
-    left: theme.spacing(1),
-    zIndex: 10,
-    padding: theme.spacing(1),
-    borderRadius: '10px',
-    boxShadow: theme.shadows[3],
-    backgroundColor: theme.palette.background.paper + 'e6',
-    backdropFilter: 'blur(2px)',
-    minWidth: '90px',
-    maxWidth: '90vw',
-    [theme.breakpoints.up('sm')]: {
-      minWidth: '160px',
-      padding: theme.spacing(2),
-      borderRadius: '12px',
-      boxShadow: theme.shadows[5],
-      backgroundColor: theme.palette.background.paper + 'cc',
-      backdropFilter: 'blur(4px)',
-    }
-  }));
-
   const ResponsiveRouteLegend = styled(Box)(({ theme }) => ({
     position: 'absolute',
-    top: theme.spacing(8),
+    top: theme.spacing(6.5),
     right: theme.spacing(0.5),
     zIndex: 10,
-    background: 'rgba(255, 255, 255, 0.95)',
+    background: 'rgba(255, 255, 255, 0.97)',
     backdropFilter: 'blur(10px)',
-    borderRadius: theme.shape.borderRadius * 2,
-    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12)',
-    border: '1px solid rgba(255, 255, 255, 0.2)',
-    padding: theme.spacing(1.5),
-    minWidth: { xs: '100px', sm: '110px', md: '120px' },
-    maxWidth: { xs: '110px', sm: '130px', md: '140px' },
-    [theme.breakpoints.up('sm')]: {
-      padding: theme.spacing(2),
-      boxShadow: '0 12px 40px rgba(0, 0, 0, 0.15)',
-    },
-    [theme.breakpoints.up('md')]: {
-      padding: theme.spacing(2.5),
+    borderRadius: theme.shape.borderRadius * 1.5,
+    boxShadow: '0 2px 12px rgba(58,134,255,0.10), 0 1.5px 6px rgba(0,0,0,0.08)',
+    padding: theme.spacing(1.2),
+    border: `1.3px solid ${routeColor}`,
+    minWidth: 'auto', 
+    maxWidth: 'none',
+    width: 'auto',
+    transform: 'scale(0.95)',
+    transition: 'all 0.2s ease',
+    '&:hover': {
+      transform: 'scale(1)',
+      boxShadow: '0 6px 24px rgba(58,134,255,0.18), 0 2px 8px rgba(0,0,0,0.12)'
     }
   }));
 
@@ -1771,7 +1799,7 @@ const calculateCentroid = (zones) => {
           onClick={handleInitializeMap}
           disabled={!destination || !isLoaded}
         >
-          Find Safe Route
+          NEXT
         </Button>
       </Paper>
     </Box>
@@ -1786,6 +1814,33 @@ const handleRecenter = () => {
       essential: true
     });
   }
+};
+
+const handleReturnToSearch = () => {
+  setInitializationPhase(true);
+
+  // Clean up Mapbox map instance
+  if (map.current) {
+    map.current.remove();
+    map.current = null;
+  }
+  // Reset refs and state
+  dangerZonesDrawnRef.current = false;
+  setMapLoaded(false);
+  setIsNavigating(false);
+  setShouldCalculateRoute(false);
+  setCurrentPosition(null);
+  setEnd(null);
+  setDestination(null);
+  setRouteSteps([]);
+  setRemainingDistance(null);
+  setRiskWarning(null);
+  setWarningOpen(true);
+  setUserProgressIndex(0);
+  routeCoordinatesRef.current = [];
+  currentRouteRef.current = null;
+  lastCalculatedPositionRef.current = null;
+  originalRouteTypeRef.current = null;
 };
 
 return (
@@ -1976,75 +2031,58 @@ return (
         {isNavigating && routeSteps.length > 0 && (
           <Box sx={{
             position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
+            top: { xs: 8, sm: 12 },
+            left: { xs: 8, sm: 12 },
+            right: { xs: 8, sm: 12 },
             zIndex: 10,
-            background: 'rgba(76, 0, 128, 0.95)',
+            background: 'rgba(77, 0, 128, 0.73)',
             backdropFilter: 'blur(10px)',
             borderBottom: '1px solid rgba(0, 0, 0, 0.1)',
-            p: { xs: 1, sm: 1.5 },
+            p: { xs: 0.5, sm: 0.8 }, // less padding
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
-            minHeight: { xs: 60, sm: 70 }
+            justifyContent: 'center',
+            minHeight: { xs: 38, sm: 44 }, // less height
+            borderRadius: { xs: 2, sm: 3 },
+            boxShadow: '0 4px 24px rgba(76,0,128,0.18), 0 1.5px 6px rgba(0,0,0,0.10)' // enhanced shadow
           }}>
-            {/* Stop Navigation Button (Top Left) */}
-            <IconButton
-              onClick={handleStopNavigation}
-              sx={{
-                color: 'white',
-                bgcolor: 'rgb(255, 23, 7)',
-                '&:hover': {
-                  bgcolor: 'rgba(255, 255, 255, 0.99)'
-                }
-              }}
-            >
-              <CloseIcon />
-            </IconButton>
-
             {/* Directions Content */}
             <Box sx={{
-              flex: 1,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               gap: 1,
-              px: 2
+              px: 2,
+              textAlign: 'center'
             }}>
-              <Box sx={{ textAlign: 'center', flex: 1 }}>
+              <Typography
+                variant="body2"
+                sx={{
+                  fontWeight: 600,
+                  fontSize: { xs: '1.2rem', sm: '1rem' },
+                  lineHeight: 1.2,
+                  wordBreak: 'break-word',
+                  color: 'white'
+                }}
+              >
+                {routeSteps[0]?.maneuver?.instruction || 'Continue straight'}
+              </Typography>
+              {routeSteps[0]?.distance > 0 && (
                 <Typography
-                  variant="body2"
+                  variant="caption"
                   sx={{
-                    fontWeight: 900,
-                    fontSize: { xs: '0.85rem', sm: '1rem' },
-                    lineHeight: 1.2,
-                    wordBreak: 'break-word',
+                    display: 'block',
+                    mt: 0.5,
+                    fontSize: { xs: '0.9rem', sm: '0.8rem' },
                     color: 'white'
                   }}
                 >
-                  {routeSteps[0]?.maneuver?.instruction || 'Continue straight'}
+                  {routeSteps[0].distance >= 1000
+                    ? `${(routeSteps[0].distance / 1000).toFixed(1)} km`
+                    : `${Math.round(routeSteps[0].distance)} m`}
                 </Typography>
-                {routeSteps[0]?.distance > 0 && (
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      display: 'block',
-                      mt: 0.5,
-                      fontSize: { xs: '0.7rem', sm: '0.8rem' },
-                      color: 'white'
-                    }}
-                  >
-                    {routeSteps[0].distance >= 1000
-                      ? `${(routeSteps[0].distance / 1000).toFixed(1)} km`
-                      : `${Math.round(routeSteps[0].distance)} m`}
-                  </Typography>
-                )}
-              </Box>
+              )}
             </Box>
-
-            {/* Empty space to balance the layout */}
-            <Box sx={{ width: 48 }} />
           </Box>
         )}
 
@@ -2062,14 +2100,42 @@ return (
             p: { xs: 1.5, sm: 2 },
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
+            justifyContent: 'space-between',
             minHeight: { xs: 70, sm: 80 }
           }}>
-            {/* Distance Info */}
-            <Box sx={{ textAlign: 'center' }}>
+            {/* Recenter Button (Left) - NEW */}
+            <IconButton
+              onClick={() => {
+                setAutoRecenter(true);
+                if (currentPosition && map.current) {
+                  map.current.setCenter(currentPosition);
+                }
+              }}
+              sx={{
+                color: autoRecenter ? 'primary.main' : 'text.secondary',
+                bgcolor: 'rgba(0, 0, 0, 0.05)',
+                width: { xs: 40, sm: 48 },
+                height: { xs: 40, sm: 48 },
+                '&:hover': {
+                  bgcolor: 'rgba(0, 0, 0, 0.08)',
+                  transform: 'scale(1.05)'
+                },
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <LocationIcon 
+                fontSize={window.innerWidth < 600 ? "small" : "medium"} 
+                color={autoRecenter ? "primary" : "inherit"}
+              />
+            </IconButton>
+
+            {/* Distance Info (Center) */}
+            <Box sx={{ textAlign: 'center', flex: 1 }}>
               <Typography variant="caption" color="text.secondary" sx={{ 
-                display: 'block', 
-                fontSize: { xs: '0.7rem', sm: '0.8rem' },
+                display: 'block',
+                fontWeight: 'bold',
+                color: 'text.primary',
+                fontSize: { xs: '0.9rem', sm: '0.8rem' },
                 mb: 0.5
               }}>
                 Remaining Distance
@@ -2088,11 +2154,29 @@ return (
                   : `${Math.round(remainingDistance)} m`}
               </Typography>
               <Typography variant="caption" color="text.secondary" sx={{ 
-                fontSize: { xs: '0.6rem', sm: '0.7rem' } 
+                fontSize: { xs: '0.7rem', sm: '0.7rem' } 
               }}>
-                {travelMode === 'walking' ? 'Walking' : 'Driving'} route
+                {travelMode === 'walking' ? 'Walking' : 'Driving'}
               </Typography>
             </Box>
+
+            {/* Stop Navigation Button (Right) */}
+            <IconButton
+              onClick={handleStopNavigation}
+              sx={{
+                color: 'text.secondary',
+                bgcolor: 'rgba(0, 0, 0, 0.05)',
+                width: { xs: 40, sm: 48 },
+                height: { xs: 40, sm: 48 },
+                '&:hover': {
+                  bgcolor: 'rgba(0, 0, 0, 0.08)',
+                  transform: 'scale(1.05)'
+                },
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <CloseIcon fontSize={window.innerWidth < 600 ? "small" : "medium"} />
+            </IconButton>
           </Box>
         )}
 
@@ -2100,7 +2184,7 @@ return (
         {isNavigating && (
           <Box sx={{
             position: 'absolute',
-            bottom: { xs: 90, sm: 100 },
+            bottom: { xs: 130, sm: 140 },
             right: { xs: 16, sm: 24 },
             zIndex: 10,
             display: 'flex',
@@ -2115,7 +2199,7 @@ return (
                 bgcolor: 'error.main',
                 width: 48,
                 height: 48,
-                boxShadow: 3,
+                boxShadow: 9,
                 '&:hover': {
                   bgcolor: 'error.dark',
                   transform: 'scale(1.05)'
@@ -2134,7 +2218,7 @@ return (
                 bgcolor: 'warning.main',
                 width: 48,
                 height: 48,
-                boxShadow: 3,
+                boxShadow: 9,
                 '&:hover': {
                   bgcolor: 'warning.dark',
                   transform: 'scale(1.05)'
@@ -2150,151 +2234,51 @@ return (
         {/* Route Information Card - REMOVED */}
         {/* Route Legend */}
         {isNavigating && (
-          <ResponsiveRouteLegend data-overlay="legend">
-            {/* Legend Grid */}
+          <ResponsiveRouteLegend>
             <Box sx={{
               display: 'flex',
               flexDirection: 'column',
-              gap: { xs: 0.5, sm: 0.8 },
-              alignItems: 'center'
+              alignItems: 'center',
+              gap: theme.spacing(0.5),
+              padding: theme.spacing(1.0),
             }}>
-              {/* Normal */}
+              <Typography 
+                variant="caption" 
+                sx={{ 
+                  fontSize: '0.65rem', 
+                  fontWeight: 700,
+                  color: 'text.secondary',
+                  lineHeight: 1,
+                  mb: 0.5
+                }}
+              >
+                ROUTE SAFETY
+              </Typography>
               <Box sx={{ 
-                display: 'flex', 
-                flexDirection: 'column', 
+                display: 'flex',
                 alignItems: 'center',
-                gap: 0.3,
-                p: 0.5,
-                borderRadius: 1,
-                transition: 'all 0.2s ease',
-                '&:hover': {
-                  bgcolor: 'rgba(58, 134, 255, 0.05)',
-                  transform: 'scale(1.02)'
-                }
+                gap: theme.spacing(0.75)
               }}>
                 <Box sx={{ 
-                  width: { xs: 14, sm: 16 }, 
-                  height: { xs: 14, sm: 16 }, 
-                  borderRadius: '50%', 
-                  bgcolor: '#3a86ff',
-                  boxShadow: '0 2px 8px rgba(58, 134, 255, 0.3)',
-                  border: '2px solid rgba(255, 255, 255, 0.8)'
+                  width: 14,
+                  height: 14,
+                  borderRadius: '50%',
+                  backgroundColor: routeColor,
+                  border: '2px solid white',
+                  boxShadow: `0 0 0 1px rgba(0,0,0,0.1), 0 2px 4px ${routeColor}80`,
+                  flexShrink: 0
                 }} />
                 <Typography 
                   variant="caption" 
                   sx={{ 
-                    fontSize: { xs: '0.6rem', sm: '0.7rem' }, 
-                    fontWeight: 600,
-                    textAlign: 'center',
-                    color: 'text.secondary'
+                    fontSize: '0.75rem', 
+                    fontWeight: 700,
+                    color: 'text.primary',
+                    lineHeight: 1,
+                    whiteSpace: 'nowrap'
                   }}
                 >
-                  Normal
-                </Typography>
-              </Box>
-
-              {/* Safe */}
-              <Box sx={{ 
-                display: 'flex', 
-                flexDirection: 'column', 
-                alignItems: 'center',
-                gap: 0.3,
-                p: 0.5,
-                borderRadius: 1,
-                transition: 'all 0.2s ease',
-                '&:hover': {
-                  bgcolor: 'rgba(0, 255, 0, 0.05)',
-                  transform: 'scale(1.02)'
-                }
-              }}>
-                <Box sx={{ 
-                  width: { xs: 14, sm: 16 }, 
-                  height: { xs: 14, sm: 16 }, 
-                  borderRadius: '50%', 
-                  bgcolor: '#00ff00',
-                  boxShadow: '0 2px 8px rgba(0, 255, 0, 0.3)',
-                  border: '2px solid rgba(255, 255, 255, 0.8)'
-                }} />
-                <Typography 
-                  variant="caption" 
-                  sx={{ 
-                    fontSize: { xs: '0.6rem', sm: '0.7rem' }, 
-                    fontWeight: 600,
-                    textAlign: 'center',
-                    color: 'text.secondary'
-                  }}
-                >
-                  Safe
-                </Typography>
-              </Box>
-
-              {/* Low Risk */}
-              <Box sx={{ 
-                display: 'flex', 
-                flexDirection: 'column', 
-                alignItems: 'center',
-                gap: 0.3,
-                p: 0.5,
-                borderRadius: 1,
-                transition: 'all 0.2s ease',
-                '&:hover': {
-                  bgcolor: 'rgba(255, 102, 0, 0.05)',
-                  transform: 'scale(1.02)'
-                }
-              }}>
-                <Box sx={{ 
-                  width: { xs: 14, sm: 16 }, 
-                  height: { xs: 14, sm: 16 }, 
-                  borderRadius: '50%', 
-                  bgcolor: '#ff6600',
-                  boxShadow: '0 2px 8px rgba(255, 102, 0, 0.3)',
-                  border: '2px solid rgba(255, 255, 255, 0.8)'
-                }} />
-                <Typography 
-                  variant="caption" 
-                  sx={{ 
-                    fontSize: { xs: '0.6rem', sm: '0.7rem' }, 
-                    fontWeight: 600,
-                    textAlign: 'center',
-                    color: 'text.secondary'
-                  }}
-                >
-                  Low Risk
-                </Typography>
-              </Box>
-
-              {/* High Risk */}
-              <Box sx={{ 
-                display: 'flex', 
-                flexDirection: 'column', 
-                alignItems: 'center',
-                gap: 0.3,
-                p: 0.5,
-                borderRadius: 1,
-                transition: 'all 0.2s ease',
-                '&:hover': {
-                  bgcolor: 'rgba(255, 0, 0, 0.05)',
-                  transform: 'scale(1.02)'
-                }
-              }}>
-                <Box sx={{ 
-                  width: { xs: 14, sm: 16 }, 
-                  height: { xs: 14, sm: 16 }, 
-                  borderRadius: '50%', 
-                  bgcolor: '#ff0000',
-                  boxShadow: '0 2px 8px rgba(255, 0, 0, 0.3)',
-                  border: '2px solid rgba(255, 255, 255, 0.8)'
-                }} />
-                <Typography 
-                  variant="caption" 
-                  sx={{ 
-                    fontSize: { xs: '0.6rem', sm: '0.7rem' }, 
-                    fontWeight: 600,
-                    textAlign: 'center',
-                    color: 'text.secondary'
-                  }}
-                >
-                  High Risk
+                  {routeType}
                 </Typography>
               </Box>
             </Box>
@@ -2309,7 +2293,16 @@ return (
             onClose={() => setWarningOpen(false)}
             anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
             sx={{
-              bottom: { xs: 80, sm: 100 },
+              bottom: { xs: 120, sm: 140 }, // move higher,
+              left: '50%',
+              transform: 'translateX(-60%)',
+              '& .MuiPaper-root': {
+                p: { xs: 0.9, sm: 1.3 }, // smaller padding
+                minWidth: { xs: 120, sm: 160 },
+                maxWidth: { xs: 220, sm: 240 },
+                fontSize: { xs: '0.7rem', sm: '0.8rem' },
+                borderRadius: 1.5,
+              }
             }}
           >
             <ResponsiveWarningAlert
@@ -2318,26 +2311,26 @@ return (
                   riskWarning.level.includes('MODERATE') ? 'medium' : 'low'
               }
             >
-              {riskWarning.level.includes('HIGH') ? <ErrorIcon fontSize="small" /> :
-                riskWarning.level.includes('MODERATE') ? <WarningIcon fontSize="small" /> : 
-                <CheckCircleIcon fontSize="small" />}
-                <Box>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
-                    {riskWarning.level}
-                  </Typography>
-                  <Typography variant="body2">
-                    {riskWarning.message}
-                  </Typography>
-                </Box>
-                <IconButton
-                  size="small"
-                  aria-label="close"
-                  color="inherit"
-                  onClick={() => setWarningOpen(false)}
-                  sx={{ ml: 1 }}
-                >
-                  <CloseIcon fontSize="small" />
-                </IconButton>
+              {riskWarning.level.includes('HIGH') ? <ErrorIcon fontSize="small" sx={{ fontSize: '1rem' }} /> :
+                riskWarning.level.includes('MODERATE') ? <WarningIcon fontSize="small" sx={{ fontSize: '1rem' }} /> : 
+                <CheckCircleIcon fontSize="small" sx={{ fontSize: '1rem' }} />}
+              <Box sx={{ p: 0, m: 0 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 'bold', fontSize: { xs: '0.7rem', sm: '0.8rem' }, m: 0, p: 0 }}>
+                  {riskWarning.level}
+                </Typography>
+                <Typography variant="body2" sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' }, m: 0, p: 0 }}>
+                  {riskWarning.message}
+                </Typography>
+              </Box>
+              <IconButton
+                size="small"
+                aria-label="close"
+                color="inherit"
+                onClick={() => setWarningOpen(false)}
+                sx={{ ml: 0.5, p: 0 }}
+              >
+                <CloseIcon fontSize="small" sx={{ fontSize: '1rem' }} />
+              </IconButton>
             </ResponsiveWarningAlert>
           </Snackbar>
         )}
@@ -2373,14 +2366,11 @@ return (
               fullWidth
             >
               <Typography sx={{ fontSize: { xs: '0.8rem', sm: '1rem' } }}>
-                Start Navigation
+                Find Safest Route
               </Typography>
             </Button>
           </Box>
         )}
-
-        {/* Emergency Button (bottom right) - REMOVED - now in top bar */}
-        {/* Report Button (bottom left) - REMOVED - now in bottom bar */}
 
         {/* Loading Danger Zones Overlay */}
         {loading && (
@@ -2405,54 +2395,36 @@ return (
           </Box>
         )}
 
-        {/* Route Safety Change Notification */}
-        {routeSafetyChange && (
+        {!isNavigating && !initializationPhase && (
           <Box sx={{
             position: 'absolute',
-            top: { xs: 80, sm: 100 },
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 100,
-            bgcolor: 'background.paper',
-            p: { xs: 1, sm: 1.5 },
-            borderRadius: 2,
-            boxShadow: 3,
-            minWidth: { xs: '200px', sm: 250 },
-            textAlign: 'center',
-            border: '2px solid',
-            borderColor: routeSafetyChange.to >= 4 ? 'error.main' : 
-                        routeSafetyChange.to >= 3 ? 'warning.main' : 
-                        routeSafetyChange.to >= 1 ? 'warning.light' : 'success.main',
-            animation: 'slideInDown 0.5s ease-out'
+            left: { xs: 16, sm: 32 },
+            bottom: { xs: 80, sm: 100 },
+            zIndex: 20,
+            display: 'flex',
+            flexDirection: 'row',
+            alignItems: 'center',
           }}>
-            <Typography
-              variant="body2"
+            <IconButton
+              onClick={handleReturnToSearch}
               sx={{
-                fontWeight: 600,
-                fontSize: { xs: '0.8rem', sm: '0.9rem' },
-                color: routeSafetyChange.to >= 4 ? 'error.main' : 
-                       routeSafetyChange.to >= 3 ? 'warning.main' : 
-                       routeSafetyChange.to >= 1 ? 'warning.light' : 'success.main'
+                color: 'primary.main',
+                bgcolor: 'rgba(0,0,0,0.05)',
+                width: 44,
+                height: 44,
+                boxShadow: 2,
+                borderRadius: 2,
+                '&:hover': {
+                  bgcolor: 'rgba(0,0,0,0.10)',
+                },
+                transition: 'all 0.2s ease',
               }}
             >
-              Route Safety Changed
-            </Typography>
-            <Typography
-              variant="caption"
-              sx={{
-                display: 'block',
-                mt: 0.5,
-                fontSize: { xs: '0.7rem', sm: '0.8rem' }
-              }}
-            >
-              {routeSafetyChange.to >= 4 ? 'High Risk' : 
-               routeSafetyChange.to >= 3 ? 'Moderate Risk' : 
-               routeSafetyChange.to >= 1 ? 'Low Risk' : 'Safe Route'}
-            </Typography>
+              <SearchIcon fontSize="medium" />
+            </IconButton>
           </Box>
         )}
 
-        {/* Route Steps (mobile only) - REMOVED - now in top bar */}
       </Box>
     </Box>
     <Modal

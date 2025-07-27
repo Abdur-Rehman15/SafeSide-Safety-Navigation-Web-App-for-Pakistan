@@ -26,10 +26,10 @@ import {
   Refresh as RefreshIcon,
   Warning as WarningIcon,
   Map as MapIcon,
-  LegendToggle as LegendIcon
 } from '@mui/icons-material';
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
+const REPORT_URL = import.meta.env.VITE_REPORT_URL;
 
 // Custom styled components
 const GradientPaper = styled(Paper)(({ theme }) => ({
@@ -204,7 +204,7 @@ export default function LocationReview() {
   const fetchCrimeReports = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('http://localhost:5000/report/nearby-reports', {
+      const response = await axios.get(`${REPORT_URL}/nearby-reports`, {
         params: {
           longitude: currentLocation.lng,
           latitude: currentLocation.lat,
@@ -635,8 +635,8 @@ export default function LocationReview() {
       {error && (
         <Card sx={{ mb: 3, backgroundColor: theme.palette.error.light }}>
           <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <WarningIcon color="error" />
-            <Typography color="error">
+            <WarningIcon color='white' />
+            <Typography color='white'>
               {error}
             </Typography>
           </CardContent>

@@ -18,6 +18,7 @@
     "@react-router/serve": "^7.5.3",
     "@turf/turf": "^7.2.0",
     "axios": "^1.10.0",
+    "dotenv": "^17.2.1",
     "framer-motion": "^12.23.6",
     "isbot": "^5.1.27",
     "lucide-react": "^0.525.0",

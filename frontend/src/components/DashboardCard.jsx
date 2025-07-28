@@ -3,6 +3,7 @@ import { Card, CardContent, Typography, Button, Box, styled } from '@mui/materia
 const SafetyCard = styled(Card)(({ theme }) => ({
   width: 280, // Fixed width instead of 100%
   height: 320, // Fixed height
+  margin: '0 auto', // Center horizontally
   display: 'flex',
   flexDirection: 'column',
   borderRadius: '16px',
@@ -69,7 +70,8 @@ export default function DashboardCard({ title, description, icon, onClick }) {
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
-        p: 3
+        p: 3,
+        textAlign: 'center'
       }}>
         <CardIconWrapper>
           {icon}

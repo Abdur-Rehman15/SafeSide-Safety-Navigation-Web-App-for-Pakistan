@@ -8,7 +8,7 @@ export default function Dashboard() {
   const features = [
     {
       title: 'Location Review',
-      description: 'Check safety ratings for specific locations',
+      description: 'Check safety ratings for specific location',
       icon: '📍',
       onClick: () => navigate('/location-review')
     },
@@ -27,7 +27,7 @@ export default function Dashboard() {
   ];
 
   return (
-    <Grid container spacing={3} sx={{ p: 3 }}>
+    <Grid container spacing={3} sx={{ p: 3, justifyContent: 'center', alignItems: 'center' }}>
       {features.map((feature, index) => (
         <Grid item xs={12} sm={6} md={4} key={index}>
           <DashboardCard {...feature} />

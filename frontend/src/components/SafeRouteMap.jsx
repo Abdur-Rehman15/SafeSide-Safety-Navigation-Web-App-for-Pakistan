@@ -77,9 +77,8 @@ export default function SafeRouteMap({ end: propEnd }) {
   const [autoRecenter, setAutoRecenter] = useState(true);
   const originalRouteTypeRef = useRef(null);
 
-
   const deviationThreshold = 40; // meters
-  const emergencyNumber = localStorage.getItem('emergecyNumber') || 15;
+  const emergencyNumber = localStorage.getItem('emergencyNumber') || 15;
   
   // Map initialization
   const handleInitializeMap = () => {
@@ -151,63 +150,6 @@ export default function SafeRouteMap({ end: propEnd }) {
           },
           withCredentials: true
         });
-
-        // const response=[
-        //   {
-        //       "location": {
-        //           "type": "Point",
-        //           "coordinates": [
-        //               74.26,
-        //               31.390014
-        //           ]
-        //       },
-        //       "votes": {
-        //           "upvotes": [],
-        //           "downvotes": [],
-        //           "score": 0
-        //       },
-        //       "_id": "687a61eed4f0cdeb1eab8bb4",
-        //       "user": {
-        //           "_id": "6876ba94936e42ef917f665a",
-        //           "firstName": "Abdur",
-        //           "lastName": "Rehman",
-        //           "email": "abdurrehman@gmail.com"
-        //       },
-        //       "userId": 1,
-        //       "typeOfCrime": "harassment",
-        //       "severity": 5,
-        //       "comments": "neww!",
-        //       "reportedAt": "2025-07-18T15:02:06.033Z",
-        //       "__v": 0
-        //   },
-        //   {
-        //       "location": {
-        //           "type": "Point",
-        //           "coordinates": [
-        //               74.244,
-        //               31.3909
-        //           ]
-        //       },
-        //       "votes": {
-        //           "upvotes": [],
-        //           "downvotes": [],
-        //           "score": 0
-        //       },
-        //       "_id": "687b98f08a6ebc4d1eed50d5",
-        //       "user": {
-        //           "_id": "6876ba94936e42ef917f665a",
-        //           "firstName": "Abdur",
-        //           "lastName": "Rehman",
-        //           "email": "abdurrehman@gmail.com"
-        //       },
-        //       "userId": 1,
-        //       "typeOfCrime": "robbery",
-        //       "severity": 3,
-        //       "comments": "my loc",
-        //       "reportedAt": "2025-07-19T13:09:04.530Z",
-        //       "__v": 0
-        //   }
-        // ];
 
         const zones = response.data.map((report, index) => ({
           id: report._id || `zone-${index}`,
@@ -1872,46 +1814,59 @@ return (
       overflow: hidden;
       box-shadow: 0 6px 18px rgba(0,0,0,0.15);
       font-family: 'Roboto', sans-serif;
-      max-width: 280px;
+      max-width: 250px;
+      width: 250px;
+      max-height: 300px;
+      height: auto;
+      overflow-y: auto;
+      word-wrap: break-word;
     }
     
     .danger-popup-header {
-      padding: 12px 16px;
+      padding: 8px 12px;
       background-color: ${theme.palette.warning.main};
       color: white;
       display: flex;
       align-items: center;
       justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 10;
     }
     
     .danger-popup-title {
       font-weight: 700;
-      font-size: 1.1rem;
+      font-size: 0.9rem;
       display: flex;
       align-items: center;
       gap: 8px;
+      word-break: break-word;
     }
     
     .danger-popup-close {
       background: none;
       border: none;
       color: white;
-      font-size: 1.4rem;
+      font-size: 1.2rem;
       cursor: pointer;
       padding: 4px;
       margin: -4px;
       line-height: 1;
+      flex-shrink: 0;
     }
     
     .danger-popup-content {
-      padding: 16px;
+      padding: 12px;
       background: white;
+      max-height: 240px;
+      overflow-y: auto;
     }
     
     .danger-popup-meta {
       display: flex;
-      gap: 16px;
-      margin-bottom: 12px;
+      gap: 12px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
     }
     
     .danger-popup-severity {
@@ -1919,23 +1874,30 @@ return (
       align-items: center;
       gap: 4px;
       font-weight: 500;
+      flex-shrink: 0;
+      font-size: 0.8rem;
     }
     
     .severity-indicator {
-      width: 12px;
-      height: 12px;
+      width: 10px;
+      height: 10px;
       border-radius: 50%;
     }
     
     .danger-popup-date {
       color: #666;
-      font-size: 0.85rem;
+      font-size: 0.75rem;
+      flex-shrink: 0;
     }
     
     .danger-popup-description {
-      margin: 12px 0;
-      line-height: 1.5;
+      margin: 8px 0;
+      line-height: 1.4;
       color: #333;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+      hyphens: auto;
+      font-size: 0.85rem;
     }
     
     .danger-popup-actions {
@@ -1993,9 +1955,9 @@ return (
         position: 'relative',
         overflow: 'hidden',
         boxSizing: 'border-box',
-        pt: { xs: 2, sm: 5, md: 7, lg: 10 }, // More gap at top
-        pb: { xs: 6, sm: 5, md: 7, lg: 10 }, // More gap at bottom
-        px: { xs: 1.5, sm: 3, md: 4, lg: 6 }, // Keep side gap
+        pt: initializationPhase ? { xs: 2, sm: 5, md: 7, lg: 10 } : 0,
+        pb: initializationPhase ? { xs: 6, sm: 5, md: 7, lg: 10 } : { xs: 6, sm: 2.5, md: 3, lg: 4 }, // <-- set pb: 0 when map is showing
+        px: { xs: 1.5, sm: 3, md: 4, lg: 6 },
         background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)'
       }}
     >
@@ -2339,7 +2301,7 @@ return (
         {currentPosition && !isNavigating && (
           <Box sx={{
             position: 'absolute',
-            bottom: { xs: 16, sm: 32 },
+            bottom: { xs: 40, sm: 32 }, // <-- Move up on mobile to avoid overlap
             left: '50%',
             transform: 'translateX(-50%)',
             zIndex: 10,
@@ -2392,6 +2354,59 @@ return (
             <Typography variant="body2" sx={{ fontSize: { xs: '0.7rem', sm: '0.9rem' } }}>
               Loading danger zones...
             </Typography>
+          </Box>
+        )}
+
+        {/* Location Error Alert - Shows when location is not available */}
+        {locationError && !initializationPhase && (
+          <Box sx={{
+            position: 'absolute',
+            top: { xs: 26, sm: 24 },
+            left: { xs: 16, sm: 24 },
+            right: { xs: 16, sm: 24 },
+            zIndex: 20,
+            bgcolor: 'error.light',
+            color: 'error.contrastText',
+            p: { xs: 2, sm: 3 },
+            borderRadius: 2,
+            boxShadow: 3,
+            border: '1px solid',
+            borderColor: 'error.main'
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+              <ErrorIcon sx={{ mt: 0.5, flexShrink: 0 }} />
+              <Box sx={{ flex: 1 }}>
+                <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
+                  Location Access Required
+                </Typography>
+                <Typography variant="body2" sx={{ mb: 2 }}>
+                  {locationError}
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                  <Button
+                    variant="contained"
+                    size="small"
+                    onClick={() => {
+                      setLocationError(null);
+                      if (geolocateControlRef.current) {
+                        geolocateControlRef.current.trigger();
+                      }
+                    }}
+                    sx={{ bgcolor: 'error.main', '&:hover': { bgcolor: 'error.dark' } }}
+                  >
+                    Try Again
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={handleReturnToSearch}
+                    sx={{ borderColor: 'error.main', color: 'error.main' }}
+                  >
+                    Go Back
+                  </Button>
+                </Box>
+              </Box>
+            </Box>
           </Box>
         )}
 
